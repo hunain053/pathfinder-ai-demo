@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
+
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 function getModel() {
@@ -17,6 +18,9 @@ function getModel() {
     model: process.env.GEMINI_MODEL || "gemini-1.5-flash-001",
   });
 }
+
+import { generateGeminiContent } from "@/lib/gemini";
+
 
 export const generateAIInsights = async (industry) => {
   const prompt = `
@@ -39,7 +43,7 @@ export const generateAIInsights = async (industry) => {
           Include at least 5 skills and trends.
         `;
 
-  const result = await getModel().generateContent(prompt);
+  const result = await generateGeminiContent(prompt);
   const response = result.response;
   const text = response.text();
   const cleanedText = text.replace(/```(?:json)?\n?/g, "").trim();

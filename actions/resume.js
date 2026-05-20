@@ -2,13 +2,16 @@
 
 import { db } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { revalidatePath } from "next/cache";
+
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({
   model: process.env.GEMINI_MODEL || "gemini-1.5-flash"
 });
+
+import { generateGeminiContent } from "@/lib/gemini";
+
 
 export async function saveResume(content) {
   const { userId } = await auth();
@@ -44,6 +47,7 @@ export async function saveResume(content) {
 
 export async function getResume() {
   const { userId } = await auth();
+
   if (!userId) throw new Error("Unauthorized");
 
   const user = await db.user.findUnique({
@@ -89,7 +93,7 @@ export async function improveWithAI({ current, type }) {
   `;
 
   try {
-    const result = await model.generateContent(prompt);
+    const result = await generateGeminiContent(prompt);
     const response = result.response;
     const improvedContent = response.text().trim();
     return improvedContent;
