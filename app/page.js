@@ -71,7 +71,7 @@ const isDarkMode = resolvedTheme === "dark";
             Powerful Features for Your Career Growth
           </motion.h2>
 
-          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4 items-stretch">
+          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 items-stretch">
             {features.map((f, i) => (
               <motion.div
                 key={f.title}

@@ -2,47 +2,126 @@
 
 import { db } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
-
-
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({
-  model: process.env.GEMINI_MODEL || "gemini-1.5-flash-001",
-});
-
-
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-/* ---------------- MODEL ---------------- */
-
-function getModel() {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-
-  return genAI.getGenerativeModel({
-    model: "gemini-1.5-flash-latest",
-  });
-}
-
-/* ---------------- QUIZ GENERATION ---------------- */
-
-
 import { generateGeminiContent } from "@/lib/gemini";
 
+// Fallback MCQ questions in case Gemini generation fails
+const FALLBACK_QUESTIONS = [
+  {
+    question: "What does HTML stand for?",
+    options: [
+      "Hyper Text Markup Language",
+      "High Transfer Machine Language",
+      "Hyperlink Text Management Language",
+      "Home Tool Markup Language",
+    ],
+    correctAnswer: "Hyper Text Markup Language",
+    explanation: "HTML (Hyper Text Markup Language) is the standard markup language used to structure and display web pages.",
+  },
+  {
+    question: "Which programming language runs natively inside web browsers?",
+    options: [
+      "Java",
+      "Python",
+      "C++",
+      "JavaScript",
+    ],
+    correctAnswer: "JavaScript",
+    explanation: "JavaScript is a high-level, interpreted scripting language that conforms to the ECMAScript specification and runs natively inside all modern browsers.",
+  },
+  {
+    question: "What is React mainly used for in web development?",
+    options: [
+      "Database management",
+      "Frontend user interface development",
+      "Operating systems",
+      "Network routing and security",
+    ],
+    correctAnswer: "Frontend user interface development",
+    explanation: "React is a popular open-source JavaScript library developed by Meta specifically for building component-based frontend user interfaces.",
+  },
+  {
+    question: "Which of the following database models is NoSQL?",
+    options: [
+      "PostgreSQL",
+      "MongoDB",
+      "MySQL",
+      "Oracle DB",
+    ],
+    correctAnswer: "MongoDB",
+    explanation: "MongoDB is a leading document-oriented NoSQL database that stores data in JSON-like flexible documents.",
+  },
+  {
+    question: "What does CSS handle in modern web development?",
+    options: [
+      "Server-side business logic",
+      "Database storage and caching",
+      "Styling, layout, and visual presentation",
+      "User authentication and sessions",
+    ],
+    correctAnswer: "Styling, layout, and visual presentation",
+    explanation: "CSS (Cascading Style Sheets) is a stylesheet language used to specify the layout, colors, fonts, and overall visual appearance of HTML documents.",
+  },
+  {
+    question: "Which hook is commonly used to manage state inside a React function component?",
+    options: [
+      "useEffect",
+      "useFetch",
+      "useState",
+      "useRouter",
+    ],
+    correctAnswer: "useState",
+    explanation: "The useState hook is a built-in React hook that allows functional components to have local state variables that persist across renders.",
+  },
+  {
+    question: "What is Node.js?",
+    options: [
+      "A frontend CSS styling framework",
+      "An open-source server runtime environment for JavaScript",
+      "A relational database system",
+      "A code compilation package manager",
+    ],
+    correctAnswer: "An open-source server runtime environment for JavaScript",
+    explanation: "Node.js is a cross-platform, open-source JavaScript runtime environment built on Chrome's V8 engine that allows developers to run JS code server-side.",
+  },
+  {
+    question: "Which technology company originally created and released Java?",
+    options: [
+      "Google",
+      "Sun Microsystems",
+      "Microsoft",
+      "Apple",
+    ],
+    correctAnswer: "Sun Microsystems",
+    explanation: "Java was originally developed and released by James Gosling and his team at Sun Microsystems in 1995 (later acquired by Oracle).",
+  },
+  {
+    question: "What does API stand for in software integration?",
+    options: [
+      "Application Programming Interface",
+      "Advanced Program Interaction",
+      "Applied Programming Internet",
+      "Application Process Integration",
+    ],
+    correctAnswer: "Application Programming Interface",
+    explanation: "An API (Application Programming Interface) is a set of defined rules and protocols that enables different software applications to communicate and exchange data.",
+  },
+  {
+    question: "Which keyword is used to declare a variable in older JavaScript scopes that is function-scoped?",
+    options: [
+      "define",
+      "string",
+      "var",
+      "integer",
+    ],
+    correctAnswer: "var",
+    explanation: "In JavaScript, 'var' is the original keyword used to declare variables. It is function-scoped rather than block-scoped like 'let' and 'const'.",
+  },
+];
 
-export async function generateQuiz() {
-
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: MODEL_NAME });
-
+/**
+ * Generates 10 unique MCQ questions based on user's industry, skills, and quiz category.
+ */
 export async function generateQuiz(category = "Technical") {
-
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 
@@ -50,27 +129,20 @@ export async function generateQuiz(category = "Technical") {
     where: { clerkUserId: userId },
     select: { industry: true, skills: true },
   });
-
   if (!user) throw new Error("User not found");
-
-
-  const normalizedSkills = Array.from(
-    new Set((user.skills || []).map((s) => String(s).trim()).filter(Boolean))
-  );
 
   const normalizedSkills = user.skills
     ? Array.from(new Set(user.skills.map((s) => String(s).trim()).filter(Boolean)))
     : [];
 
-
   const categoryPrompts = {
-    Technical: `Generate 10 technical interview questions for a ${user.industry} professional${
+    Technical: `Generate 10 technical interview questions for a ${user.industry || "software"} professional${
       normalizedSkills.length ? ` with expertise in ${normalizedSkills.join(", ")}` : ""
-    }. Focus on programming concepts, data structures, algorithms, and technical knowledge.`,
-    Behavioral: `Generate 10 behavioral interview questions for a ${user.industry} professional${
+    }. Focus on programming concepts, data structures, system design, algorithms, and practical technical knowledge.`,
+    Behavioral: `Generate 10 behavioral interview questions for a ${user.industry || "software"} professional${
       normalizedSkills.length ? ` with expertise in ${normalizedSkills.join(", ")}` : ""
-    }. Focus on teamwork, leadership, conflict resolution, communication, and past experiences. Use scenarios like "Tell me about a time when..." or "How would you handle..."`,
-    Situational: `Generate 10 situational interview questions for a ${user.industry} professional${
+    }. Focus on teamwork, leadership, conflict resolution, communication, and past experiences. Use scenarios like 'Tell me about a time when...' or 'How would you handle...'`,
+    Situational: `Generate 10 situational interview questions for a ${user.industry || "software"} professional${
       normalizedSkills.length ? ` with expertise in ${normalizedSkills.join(", ")}` : ""
     }. Focus on hypothetical workplace scenarios — how the candidate would handle specific on-the-job situations, ethical dilemmas, and decision-making.`,
   };
@@ -78,204 +150,59 @@ export async function generateQuiz(category = "Technical") {
   const categoryIntro = categoryPrompts[category] || categoryPrompts.Technical;
 
   const prompt = `
+You are a highly experienced hiring manager and strict quiz generator.
 
-You are a strict quiz generator.
+${categoryIntro}
 
-Generate EXACTLY 10 UNIQUE MCQ questions for a ${user.industry} professional
-${normalizedSkills.length ? `with skills in ${normalizedSkills.join(", ")}` : ""}.
+Generate EXACTLY 10 UNIQUE MCQ questions.
 
 RULES:
-- Exactly 10 questions only
-- No repetition
-- Each question must be real-world and clear
-- Each question must have 4 FULL descriptive options (NOT A, B, C, D)
-- Only ONE correct answer
-- correctAnswer MUST exactly match one option text
+- Exactly 10 questions only. No repetition.
+- Each question must be highly relevant to a professional in ${user.industry || "software engineering"}.
+- Each question must have 4 FULL, realistic options (do NOT use labels like 'A', 'B', 'C', 'D' at the beginning of options).
+- Only ONE correct answer.
+- The 'correctAnswer' field MUST exactly match the string text of one of the options.
+- Include a helpful, 1-2 sentence 'explanation' for the correct answer.
 
-Return ONLY valid JSON:
+Return ONLY a valid JSON object matching this schema. Do not output any markdown code fences, headers, or extra text:
 
 {
   "questions": [
-
-    ${categoryIntro}
-    
-    Each question should be multiple choice with 4 options.
-    
-    Return the response in this JSON format only, no additional text:
-
     {
-      "question": "string",
+      "question": "Descriptive question text?",
       "options": [
-        "full option 1",
-        "full option 2",
-        "full option 3",
-        "full option 4"
+        "Option text 1",
+        "Option text 2",
+        "Option text 3",
+        "Option text 4"
       ],
-      "correctAnswer": "exact matching option text",
-      "explanation": "string"
+      "correctAnswer": "Option text 3",
+      "explanation": "Detailed explanation of why Option 3 is correct."
     }
   ]
 }
 `;
 
   try {
-
-
-  const result = await getModel().generateContent(prompt);
-  const text = result.response.text();
-
-  console.log("RAW GEMINI OUTPUT:", text);
-
-  const cleaned = text
-    .replace(/```json/g, "")
-    .replace(/```/g, "")
-    .trim();
-
-  console.log("CLEANED OUTPUT:", cleaned);
-
-  const quiz = JSON.parse(cleaned);
-
-  console.log("PARSED QUIZ:", quiz);
-
-  if (!quiz?.questions) {
-    throw new Error("No questions field in response");
-
     const result = await generateGeminiContent(prompt);
+    const text = result.response.text();
+    const cleaned = text.replace(/```(?:json)?[\r\n]?/g, "").trim();
+    const quiz = JSON.parse(cleaned);
 
-    const result = await model.generateContent(prompt);
+    if (!quiz || !Array.isArray(quiz.questions) || quiz.questions.length === 0) {
+      throw new Error("Invalid questions structure received from AI.");
+    }
 
-    const response = result.response;
-    const text = response.text();
-    const cleanedText = text.replace(/```(?:json)?\n?/g, "").trim();
-    const quiz = JSON.parse(cleanedText);
-
-    return quiz.questions;
+    return quiz.questions.slice(0, 10);
   } catch (error) {
-    console.error("Error generating quiz:", error);
-    throw new Error("Failed to generate quiz questions");
-
+    console.error("AI Quiz generation failed, using default questions:", error);
+    return FALLBACK_QUESTIONS;
   }
-
-  return quiz.questions.slice(0, 10);
-} catch (error) {
-  console.error("Quiz generation error FULL:", error);
-
-  return [
-    {
-      question: "What does HTML stand for?",
-      options: [
-        "Hyper Text Markup Language",
-        "High Transfer Machine Language",
-        "Hyperlink Text Management Language",
-        "Home Tool Markup Language",
-      ],
-      correctAnswer: "Hyper Text Markup Language",
-      explanation: "HTML is used to structure web pages.",
-    },
-    {
-      question: "Which language runs inside the browser?",
-      options: [
-        "Java",
-        "Python",
-        "C++",
-        "JavaScript",
-      ],
-      correctAnswer: "JavaScript",
-      explanation: "JavaScript runs in browsers.",
-    },
-    {
-      question: "What is React mainly used for?",
-      options: [
-        "Database management",
-        "Frontend UI development",
-        "Operating systems",
-        "Networking",
-      ],
-      correctAnswer: "Frontend UI development",
-      explanation: "React is a frontend library for building UI.",
-    },
-    {
-      question: "Which database is NoSQL?",
-      options: [
-        "PostgreSQL",
-        "MongoDB",
-        "MySQL",
-        "Oracle",
-      ],
-      correctAnswer: "MongoDB",
-      explanation: "MongoDB is a NoSQL document database.",
-    },
-    {
-      question: "What does CSS handle in web development?",
-      options: [
-        "Server logic",
-        "Database storage",
-        "Styling webpages",
-        "Authentication",
-      ],
-      correctAnswer: "Styling webpages",
-      explanation: "CSS is used for styling web pages.",
-    },
-    {
-      question: "Which hook is used for state in React?",
-      options: [
-        "useEffect",
-        "useFetch",
-        "useState",
-        "useRouter",
-      ],
-      correctAnswer: "useState",
-      explanation: "useState manages component state.",
-    },
-    {
-      question: "What is Node.js?",
-      options: [
-        "Frontend framework",
-        "Runtime environment",
-        "Database",
-        "CSS library",
-      ],
-      correctAnswer: "Runtime environment",
-      explanation: "Node.js runs JavaScript outside the browser.",
-    },
-    {
-      question: "Which company created Java?",
-      options: [
-        "Google",
-        "Sun Microsystems",
-        "Microsoft",
-        "Apple",
-      ],
-      correctAnswer: "Sun Microsystems",
-      explanation: "Java was originally developed by Sun Microsystems.",
-    },
-    {
-      question: "What does API stand for?",
-      options: [
-        "Application Programming Interface",
-        "Advanced Program Interaction",
-        "Applied Programming Internet",
-        "Application Process Integration",
-      ],
-      correctAnswer: "Application Programming Interface",
-      explanation: "API allows communication between software systems.",
-    },
-    {
-      question: "Which keyword declares variables in JavaScript?",
-      options: [
-        "define",
-        "string",
-        "var",
-        "integer",
-      ],
-      correctAnswer: "var",
-      explanation: "var is used to declare variables in JavaScript.",
-    },
-  ];
 }
-}
-/* ---------------- SAVE QUIZ RESULT ---------------- */
 
+/**
+ * Saves a quiz result and generates AI-powered feedback if mistakes were made.
+ */
 export async function saveQuizResult(questions, answers, score, category = "Technical") {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
@@ -283,9 +210,7 @@ export async function saveQuizResult(questions, answers, score, category = "Tech
   const user = await db.user.findUnique({
     where: { clerkUserId: userId },
   });
-
   if (!user) throw new Error("User not found");
-
 
   const sanitizedAnswers = Array.isArray(answers)
     ? answers.slice(0, questions.length)
@@ -295,84 +220,55 @@ export async function saveQuizResult(questions, answers, score, category = "Tech
     sanitizedAnswers.push(null);
   }
 
-  const sanitizedAnswers = Array.isArray(answers) ? answers.slice(0, questions.length) : [];
-  while (sanitizedAnswers.length < questions.length) sanitizedAnswers.push(null);
-
-
-  const questionMap = new Map();
+  // Map user answers to question outcomes
+  const questionResults = [];
+  const wrongAnswers = [];
 
   questions.forEach((q, index) => {
     if (!q?.question) return;
 
-    const key = String(q.question).trim();
+    const userAnswer = sanitizedAnswers[index];
+    const isCorrect = q.correctAnswer === userAnswer;
 
-    if (!questionMap.has(key)) {
-      questionMap.set(key, {
-        question: key,
-        answer: q.correctAnswer,
-        userAnswer: sanitizedAnswers[index],
-        isCorrect: q.correctAnswer === sanitizedAnswers[index],
-        explanation: q.explanation,
-      });
+    const mappedQuestion = {
+      question: q.question.trim(),
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+      userAnswer: userAnswer,
+      isCorrect,
+      explanation: q.explanation,
+    };
+
+    questionResults.push(mappedQuestion);
+
+    if (!isCorrect) {
+      wrongAnswers.push(mappedQuestion);
     }
   });
-
-  const questionResults = Array.from(questionMap.values());
-
-  const wrongAnswers = questionResults.filter((q) => !q.isCorrect);
 
   let improvementTip = null;
 
   if (wrongAnswers.length > 0) {
     const wrongText = wrongAnswers
-      .map(
-        (q) =>
-          `Q: ${q.question}\nCorrect: ${q.answer}\nUser: ${q.userAnswer}`
-      )
+      .slice(0, 3)
+      .map((q) => `Q: ${q.question}\nCorrect answer was: ${q.correctAnswer}\nUser answered: ${q.userAnswer || "No Answer"}`)
       .join("\n\n");
 
-    const prompt = `
-User (${user.industry}) needs improvement based on mistakes:
+    const tipPrompt = `
+You are a supportive career mentor. The candidate working in the ${user.industry || "software"} industry completed a ${category} quiz and got a score of ${score}%.
+Here are some of the questions they got wrong:
 
 ${wrongText}
 
-Give a short, encouraging improvement tip (max 2 sentences).
-Focus on learning direction, not criticism.
+Provide an encouraging, actionable improvement tip (strictly max 2 sentences) recommending key learning areas. Be positive, warm, and professional. Do not refer to question indexes or speak critically.
 `;
 
     try {
-
-
-      const result = await getModel().generateContent(prompt);
-      improvementTip = result.response.text().trim();
-    } catch (e) {
-      console.error("Tip generation failed:", e);
-
-      const tipResult = await generateGeminiContent(improvementPrompt);
-
-      const tipResult = await model.generateContent(improvementPrompt);
-
-
+      const tipResult = await generateGeminiContent(tipPrompt);
       improvementTip = tipResult.response.text().trim();
-      console.log(improvementTip);
-    } catch (error) {
-      console.error("Error generating improvement tip:", error);
-
-      // Continue without improvement tip if generation fails
-
-    }
-  }
-
-  return await db.assessment.create({
-    data: {
-      userId: user.id,
-      quizScore: score,
-      questions: questionResults,
-      category: "Technical",
-      improvementTip,
-    },
-  });
-
+    } catch (e) {
+      console.error("Failed to generate custom AI improvement tip:", e);
+      improvementTip = "Focus on reviewing core programming concepts and regular system design patterns to strengthen your skills.";
     }
   }
 
@@ -389,14 +285,14 @@ Focus on learning direction, not criticism.
 
     return assessment;
   } catch (error) {
-    console.error("Error saving quiz result:", error);
-    throw new Error("Failed to save quiz result");
+    console.error("Error saving assessment to database:", error);
+    throw new Error("Failed to save quiz results.");
   }
-
 }
 
-/* ---------------- GET RESULTS ---------------- */
-
+/**
+ * Fetches all assessments for the signed-in user, newest first.
+ */
 export async function getAssessments() {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
@@ -404,32 +300,17 @@ export async function getAssessments() {
   const user = await db.user.findUnique({
     where: { clerkUserId: userId },
   });
-
   if (!user) throw new Error("User not found");
 
-
-  return await db.assessment.findMany({
+  return db.assessment.findMany({
     where: { userId: user.id },
     orderBy: { createdAt: "desc" },
   });
-
-  try {
-    const assessments = await db.assessment.findMany({
-      where: {
-        userId: user.id,
-      },
-      orderBy: {
-        createdAt: "asc",
-      },
-    });
-
-    return assessments;
-  } catch (error) {
-    console.error("Error fetching assessments:", error);
-    throw new Error("Failed to fetch assessments");
-  }
 }
 
+/**
+ * Fetches a single assessment by ID.
+ */
 export async function getAssessment(id) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
@@ -437,23 +318,15 @@ export async function getAssessment(id) {
   const user = await db.user.findUnique({
     where: { clerkUserId: userId },
   });
-
   if (!user) throw new Error("User not found");
 
-  try {
-    const assessment = await db.assessment.findUnique({
-      where: {
-        id,
-        userId: user.id,
-      },
-    });
+  const assessment = await db.assessment.findUnique({
+    where: {
+      id,
+      userId: user.id,
+    },
+  });
 
-    if (!assessment) throw new Error("Assessment not found");
-
-    return assessment;
-  } catch (error) {
-    console.error("Error fetching assessment:", error);
-    throw new Error("Failed to fetch assessment");
-  }
-
+  if (!assessment) throw new Error("Assessment not found or access denied.");
+  return assessment;
 }

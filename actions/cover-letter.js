@@ -2,104 +2,50 @@
 
 import { db } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
-
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
-
 import { generateGeminiContent } from "@/lib/gemini";
 
-
+/**
+ * Generates a professional cover letter using Gemini AI.
+ * If AI generation fails, saves a high-quality fallback cover letter.
+ */
 export async function generateCoverLetter(data) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 
-/* ---------------- MODEL ---------------- */
+  const user = await db.user.findUnique({
+    where: { clerkUserId: userId },
+  });
+  if (!user) throw new Error("User not found");
 
-import { generateGeminiContent } from "@/lib/gemini";
-
-
-
-function getModel() {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is missing");
+  if (!data?.jobTitle || !data?.companyName || !data?.jobDescription) {
+    throw new Error("Missing required fields");
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-
-  return genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
-  });
-}
-
-/* ---------------- GENERATE COVER LETTER ---------------- */
-
-export async function generateCoverLetter(data) {
-  let user;
-
-  try {
-
-    const { userId } = await auth();
-
-    if (!userId) {
-      throw new Error("Unauthorized");
-    }
-
-    user = await db.user.findUnique({
-      where: {
-        clerkUserId: userId,
-      },
-    });
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    if (
-      !data?.jobTitle ||
-      !data?.companyName ||
-      !data?.jobDescription
-    ) {
-      throw new Error("Missing required fields");
-    }
-
-    const prompt = `
+  const prompt = `
 Write a professional cover letter for a ${data.jobTitle} position at ${data.companyName}.
 
 Candidate Details:
-- Industry: ${user.industry || "Not provided"}
-- Experience: ${user.experience || "Not provided"}
-- Skills: ${user.skills?.join(", ") || "Not provided"}
-- Background: ${user.bio || "Not provided"}
+- Name: ${user.name || "Candidate"}
+- Industry: ${user.industry || "Technology"}
+- Experience: ${user.experience || "0"} years
+- Skills: ${user.skills?.join(", ") || "Not specified"}
+- Background: ${user.bio || "Not specified"}
 
 Job Description:
 ${data.jobDescription}
 
 Requirements:
-- Professional tone
+- Professional, engaging, and persuasive tone
 - Max 400 words
-- Highlight relevant skills
-- Mention achievements
-- Use markdown formatting
+- Highlight how the candidate's skills and experience match the job description
+- Use markdown formatting for readability
 `;
 
-    const result = await getModel().generateContent(prompt);
-
-    const response = await result.response;
-
-    const content = response.text()?.trim();
-
-    if (!content) {
-      throw new Error("Empty AI response");
-    }
-=======
+  try {
     const result = await generateGeminiContent(prompt);
     const content = result.response.text().trim();
 
+    if (!content) throw new Error("AI response was empty.");
 
     const coverLetter = await db.coverLetter.create({
       data: {
@@ -113,41 +59,30 @@ Requirements:
     });
 
     return coverLetter;
-
   } catch (error) {
-
-    console.error("Cover Letter Error:", error);
-    if (!user) {
-  throw new Error("Failed to generate cover letter");
-}
+    console.error("Error generating cover letter, using fallback:", error);
 
     const fallbackContent = `
-=======
-  console.error("Error generating cover letter:", error);
-
-  const fallbackContent = `
-
 # Cover Letter
 
 Dear Hiring Manager,
 
+I am writing to express my interest in the ${data.jobTitle} position at ${data.companyName}. 
 
-I am excited to apply for the ${data?.jobTitle || "this"} position at ${data?.companyName || "your company"}.
+Based on my background in the ${user.industry || "relevant"} industry and my experience, I believe I can bring valuable skills to your team. I would love the opportunity to discuss how my qualifications align with your needs.
 
-My background in ${user?.industry || "technology"} along with my skills and experience make me a strong candidate for this role.
-
-Thank you for considering my application.
+Thank you for your time and consideration.
 
 Sincerely,
-${user?.name || "Candidate"}
+${user.name || "Candidate"}
 `;
 
     const coverLetter = await db.coverLetter.create({
       data: {
-        content: fallbackContent,
-        jobDescription: data?.jobDescription || "",
-        companyName: data?.companyName || "Unknown Company",
-        jobTitle: data?.jobTitle || "Unknown Role",
+        content: fallbackContent.trim(),
+        companyName: data.companyName,
+        jobTitle: data.jobTitle,
+        jobDescription: data.jobDescription,
         status: "fallback",
         userId: user.id,
       },
@@ -155,83 +90,39 @@ ${user?.name || "Candidate"}
 
     return coverLetter;
   }
-=======
-I am excited to apply for the ${data.jobTitle} position at ${data.companyName}.
-
-My background in ${user.industry} and my experience make me a strong candidate.
-
-Thank you for your time.
-
-Sincerely,
-${user.name || "Candidate"}
-`;
-
-  const coverLetter = await db.coverLetter.create({
-    data: {
-      content: fallbackContent,
-      jobDescription: data.jobDescription,
-      companyName: data.companyName,
-      jobTitle: data.jobTitle,
-      status: "fallback",
-      userId: user.id,
-    },
-  });
-
-  return coverLetter;
 }
 
-}
-
-
-/* ---------------- GET ALL COVER LETTERS ---------------- */
-
+/**
+ * Fetches all cover letters for the signed-in user, newest first.
+ */
 export async function getCoverLetters() {
   const { userId } = await auth();
-
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
+  if (!userId) throw new Error("Unauthorized");
 
   const user = await db.user.findUnique({
-    where: {
-      clerkUserId: userId,
-    },
+    where: { clerkUserId: userId },
   });
+  if (!user) throw new Error("User not found");
 
-  if (!user) {
-    throw new Error("User not found");
-  }
-
-  return await db.coverLetter.findMany({
-    where: {
-      userId: user.id,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
+  return db.coverLetter.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: "desc" },
   });
 }
 
-/* ---------------- GET SINGLE COVER LETTER ---------------- */
-
+/**
+ * Fetches a single cover letter by ID (ownership-checked).
+ */
 export async function getCoverLetter(id) {
   const { userId } = await auth();
-
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
+  if (!userId) throw new Error("Unauthorized");
 
   const user = await db.user.findUnique({
-    where: {
-      clerkUserId: userId,
-    },
+    where: { clerkUserId: userId },
   });
+  if (!user) throw new Error("User not found");
 
-  if (!user) {
-    throw new Error("User not found");
-  }
-
-  return await db.coverLetter.findFirst({
+  return db.coverLetter.findFirst({
     where: {
       id,
       userId: user.id,
@@ -239,28 +130,22 @@ export async function getCoverLetter(id) {
   });
 }
 
-/* ---------------- DELETE COVER LETTER ---------------- */
-
+/**
+ * Deletes a specific cover letter record (ownership-checked).
+ */
 export async function deleteCoverLetter(id) {
   const { userId } = await auth();
-
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
+  if (!userId) throw new Error("Unauthorized");
 
   const user = await db.user.findUnique({
-    where: {
-      clerkUserId: userId,
-    },
+    where: { clerkUserId: userId },
   });
+  if (!user) throw new Error("User not found");
 
-  if (!user) {
-    throw new Error("User not found");
-  }
-
-  return await db.coverLetter.delete({
+  return db.coverLetter.delete({
     where: {
       id,
+      userId: user.id,
     },
   });
 }

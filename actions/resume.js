@@ -5,11 +5,6 @@ import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({
-  model: process.env.GEMINI_MODEL || "gemini-1.5-flash"
-});
-
 import { generateGeminiContent } from "@/lib/gemini";
 
 
