@@ -4,6 +4,7 @@ import { db } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { generateGeminiContent } from "@/lib/gemini";
+import { buildSecurePrompt } from "@/lib/prompt-safety";
 
 /**
  * Runs an ATS analysis using Gemini AI and persists the result.
@@ -20,18 +21,15 @@ export async function analyzeATS({ resumeContent, jobDescription, jobTitle, comp
   if (!resumeContent?.trim()) throw new Error("Resume content is required");
   if (!jobDescription?.trim()) throw new Error("Job description is required");
 
-  const prompt = `
-You are an expert ATS (Applicant Tracking System) analyst and career coach.
-
-Analyze the following resume against the job description and return a detailed ATS compatibility report.
-
-RESUME:
-${resumeContent}
-
-JOB DESCRIPTION:
-${jobDescription}
-
-Provide your analysis in the following JSON format ONLY — no extra text, no markdown fences:
+  const prompt = buildSecurePrompt({
+    task: "You are an expert ATS (Applicant Tracking System) analyst and career coach. Analyze the resume against the job description and return a detailed ATS compatibility report.",
+    untrustedData: [
+      { label: "resumeContent", value: resumeContent, maxLength: 8000 },
+      { label: "jobDescription", value: jobDescription, maxLength: 8000 },
+      { label: "jobTitle", value: jobTitle || "Not specified", maxLength: 200 },
+      { label: "companyName", value: companyName || "Not specified", maxLength: 200 },
+    ],
+    outputRules: `Provide your analysis in the following JSON format ONLY — no extra text, no markdown fences:
 {
   "atsScore": <number between 0 and 100>,
   "matchedKeywords": [<array of keywords/skills/phrases found in BOTH the resume and job description>],
@@ -53,8 +51,8 @@ Scoring guidelines:
 - 91-100: Excellent match — resume is highly optimized for this role
 
 Be specific and actionable. Include at least 5 matched keywords (if present), at least 5 missing keywords, and at least 5 improvement suggestions.
-IMPORTANT: Return ONLY valid JSON. No markdown, no explanation outside the JSON.
-`;
+IMPORTANT: Return ONLY valid JSON. No markdown, no explanation outside the JSON.`,
+  });
 
   let analysis;
   try {
