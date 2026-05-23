@@ -4,6 +4,22 @@ import { buildSecurePrompt } from "@/lib/prompt-safety";
 
 export async function POST(request) {
   const { userId } = await auth();
+  const endpoint = "/api/generate";
+  const subject = getRateLimitIdentifier(request, userId);
+  const rateLimit = enforceRateLimit({
+    endpoint,
+    subject,
+    limitPerMinute: userId ? 20 : 5,
+    burstCapacity: userId ? 10 : 5,
+  });
+
+  if (!rateLimit.allowed) {
+    return buildRateLimitResponse({
+      message: "Too Many Requests",
+      retryAfterSeconds: rateLimit.retryAfterSeconds,
+      sse: true,
+    });
+  }
 
   if (!userId) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
