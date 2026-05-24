@@ -73,7 +73,7 @@ IMPORTANT: Return ONLY valid JSON. No markdown, no explanation outside the JSON.
     const missingKeywords = Array.isArray(parsedAnalysis.missingKeywords) ? parsedAnalysis.missingKeywords.map(String) : [];
     const suggestions = normalizeAtsSuggestions(parsedAnalysis.suggestions);
 
-    const record = await db.aTSAnalysis.create({
+    const record = await db.atsAnalysis.create({
       data: {
         userId: user.id,
         jobTitle: jobTitle || "Target Position",
@@ -103,24 +103,24 @@ export async function getATSAnalyses() {
   try {
     const { userId } = await auth();
     if (!userId) {
-      return { success: false, errors: { _form: ["Unauthorized access. Sign-in required."] } };
+      return { success: false, data: [] };
     }
 
     const user = await db.user.findUnique({
       where: { clerkUserId: userId },
     });
     if (!user) {
-      return { success: false, errors: { _form: ["User profile not found."] } };
+      return { success: false, data: [] };
     }
 
-    const analyses = await db.aTSAnalysis.findMany({
+    const analyses = await db.atsAnalysis.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
     });
-    return { success: true, data: analyses };
+    return { success: true, data: analyses || [] };
   } catch (error) {
     console.error("Failed to query ATS listings:", error);
-    return { success: false, errors: { _form: [error.message || String(error)] } };
+    return { success: false, data: [] };
   }
 }
 
@@ -145,12 +145,17 @@ export async function deleteATSAnalysis(id) {
       return { success: false, errors: { _form: ["User profile not found."] } };
     }
 
-    await db.aTSAnalysis.delete({
-      where: {
-        id: id.trim(),
-        userId: user.id,
-      },
-    });
+    // Ensure the record exists and belongs to the requesting user before deleting.
+    const existing = await db.atsAnalysis.findUnique({ where: { id: id.trim() } });
+    if (!existing) {
+      return { success: false, errors: { _form: ["Analysis record not found."] } };
+    }
+
+    if (existing.userId !== user.id) {
+      return { success: false, errors: { _form: ["Unauthorized: you do not own this analysis."] } };
+    }
+
+    await db.atsAnalysis.delete({ where: { id: existing.id } });
 
     revalidatePath("/ats-analyzer");
     return { success: true };

@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef } from "react";
 import { analyzeATS } from "@/actions/ats";
-import { extractTextFromFile, ACCEPTED_RESUME_TYPES } from "@/lib/extract-resume-text";
+import { extractTextFromFile, ACCEPTED_RESUME_TYPES } from "@/lib/extract-resume-text"; // Client-safe PDF/DOCX extractor
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,11 +43,9 @@ export default function ATSForm({ savedResumeContent, onComplete }) {
           jobTitle,
           companyName,
         });
-        if (result?.success) {
-          toast.success("ATS analysis complete!");
-          onComplete(result);
-        } else {
-          // Surface server-side validation errors or generic error
+
+        // Surface server-side validation errors or generic error
+        if (!result?.success) {
           const errorMessage =
             result?.errors?.resumeContent?.[0] ||
             result?.errors?.jobDescription?.[0] ||
@@ -57,7 +55,11 @@ export default function ATSForm({ savedResumeContent, onComplete }) {
             "Analysis failed. Please review your input and try again.";
 
           toast.error(errorMessage);
+          return;
         }
+
+        toast.success("ATS analysis complete!");
+        onComplete(result.data);
       } catch (err) {
         console.error(err);
         toast.error(err.message || "Analysis failed. Please try again.");
@@ -236,7 +238,7 @@ export default function ATSForm({ savedResumeContent, onComplete }) {
 
             <Textarea
               id="resumeContent"
-              placeholder="…or paste your resume content here.&#10;&#10;Include: Work Experience, Skills, Education, Projects, Certifications."
+              placeholder="…or paste your resume content here.\n\nInclude: Work Experience, Skills, Education, Projects, Certifications."
               value={resumeContent}
               onChange={(e) => setResumeContent(e.target.value)}
               className="flex-1 min-h-[300px] resize-none font-mono text-sm leading-relaxed"
@@ -271,7 +273,7 @@ export default function ATSForm({ savedResumeContent, onComplete }) {
           <CardContent className="flex-1 flex flex-col gap-3">
             <Textarea
               id="jobDescription"
-              placeholder="Paste the job description here...&#10;&#10;Include: Responsibilities, Requirements, Nice-to-haves, Tech stack."
+              placeholder="Paste the job description here...\n\nInclude: Responsibilities, Requirements, Nice-to-haves, Tech stack."
               value={jobDescription}
               onChange={(e) => setJobDescription(e.target.value)}
               className="flex-1 min-h-[380px] resize-none font-mono text-sm leading-relaxed"

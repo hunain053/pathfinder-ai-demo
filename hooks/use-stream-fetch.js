@@ -73,7 +73,7 @@ export default function useStreamFetch() {
     }, TICK_MS);
   }, [stopReleasing]);
 
-const startStream = useCallback(async (prompt, conversationId = null) => {x
+const startStream = useCallback(async (prompt, conversationId = null) => {
     // Cancel any existing stream
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();

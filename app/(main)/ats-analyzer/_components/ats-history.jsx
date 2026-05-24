@@ -192,7 +192,9 @@ function HistoryCard({ item, onDelete }) {
 }
 
 export default function ATSHistory({ history, onDelete }) {
-  if (history.length === 0) {
+  const safeHistory = Array.isArray(history) ? history : [];
+
+  if (safeHistory.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
         <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -209,9 +211,9 @@ export default function ATSHistory({ history, onDelete }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        {history.length} {history.length === 1 ? "analysis" : "analyses"} · Sorted newest first
+        {safeHistory.length} {safeHistory.length === 1 ? "analysis" : "analyses"} · Sorted newest first
       </p>
-      {history.map((item) => (
+      {safeHistory.map((item) => (
         <HistoryCard key={item.id} item={item} onDelete={onDelete} />
       ))}
     </div>

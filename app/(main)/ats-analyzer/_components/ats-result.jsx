@@ -71,9 +71,12 @@ function KeywordBadge({ word, type }) {
 /* ── PDF download ─────────────────────────────────────── */
 async function downloadReport(result) {
   const { default: html2pdf } = await import("html2pdf.js");
-  const { atsScore, jobTitle, companyName, matchedKeywords, missingKeywords, suggestions, overallFeedback, createdAt } = result;
+  const { atsScore, jobTitle, companyName, matchedKeywords, missingKeywords, suggestions, overallFeedback, createdAt } = result || {};
+  const safeScore = Number.isFinite(Number(atsScore)) ? Math.min(100, Math.max(0, Number(atsScore))) : 0;
+  const safeMatchedKeywords = Array.isArray(matchedKeywords) ? matchedKeywords : [];
+  const safeMissingKeywords = Array.isArray(missingKeywords) ? missingKeywords : [];
   const normalizedSuggestions = normalizeAtsSuggestions(suggestions);
-  const { label } = getScoreColor(atsScore);
+  const { label } = getScoreColor(safeScore);
 
   const html = `
     <div style="font-family: Arial, sans-serif; padding: 32px; color: #111; max-width: 800px; margin: 0 auto;">
@@ -82,20 +85,20 @@ async function downloadReport(result) {
       ${jobTitle || companyName ? `<p style="color:#475569; margin-bottom:24px;"><strong>Role:</strong> ${jobTitle || "N/A"} ${companyName ? `@ ${companyName}` : ""}</p>` : ""}
 
       <div style="background:#f8fafc; border-radius:12px; padding:24px; text-align:center; margin-bottom:24px;">
-        <div style="font-size:64px; font-weight:900; color:${atsScore >= 75 ? "#22c55e" : atsScore >= 50 ? "#f59e0b" : "#ef4444"};">${Math.round(atsScore)}</div>
+        <div style="font-size:64px; font-weight:900; color:${safeScore >= 75 ? "#22c55e" : safeScore >= 50 ? "#f59e0b" : "#ef4444"};">${Math.round(safeScore)}</div>
         <div style="font-size:18px; font-weight:700; color:#475569;">ATS Score — ${label}</div>
       </div>
 
       ${overallFeedback ? `<div style="background:#eff6ff; border-left:4px solid #3b82f6; padding:16px; border-radius:6px; margin-bottom:24px;">
         <strong>Overall Feedback</strong><p style="margin:8px 0 0;">${overallFeedback}</p></div>` : ""}
 
-      <h2 style="font-size:18px; color:#16a34a; margin-bottom:8px;">✅ Matched Keywords (${matchedKeywords.length})</h2>
-      <p style="margin-bottom:20px;">${matchedKeywords.join(" · ")}</p>
+      <h2 style="font-size:18px; color:#16a34a; margin-bottom:8px;">Matched Keywords (${safeMatchedKeywords.length})</h2>
+      <p style="margin-bottom:20px;">${safeMatchedKeywords.join(", ")}</p>
 
-      <h2 style="font-size:18px; color:#dc2626; margin-bottom:8px;">❌ Missing Keywords (${missingKeywords.length})</h2>
-      <p style="margin-bottom:20px;">${missingKeywords.join(" · ")}</p>
+      <h2 style="font-size:18px; color:#dc2626; margin-bottom:8px;">Missing Keywords (${safeMissingKeywords.length})</h2>
+      <p style="margin-bottom:20px;">${safeMissingKeywords.join(", ")}</p>
 
-      <h2 style="font-size:18px; margin-bottom:12px;">💡 Improvement Suggestions</h2>
+      <h2 style="font-size:18px; margin-bottom:12px;">Improvement Suggestions</h2>
       ${normalizedSuggestions.map(s => `
         <div style="border:1px solid #e2e8f0; border-radius:8px; padding:12px 16px; margin-bottom:10px;">
           <strong style="color:#6d28d9;">${s.category}</strong>
@@ -126,12 +129,17 @@ export default function ATSResult({ result, onAnalyzeAgain }) {
     atsScore,
     jobTitle,
     companyName,
-    matchedKeywords = [],
-    missingKeywords = [],
-    suggestions = [],
+    matchedKeywords,
+    missingKeywords,
+    suggestions,
     overallFeedback,
-  } = result;
+  } = result || {};
+
+  const safeScore = Number.isFinite(Number(atsScore)) ? Math.min(100, Math.max(0, Number(atsScore))) : 0;
+  const safeMatchedKeywords = Array.isArray(matchedKeywords) ? matchedKeywords : [];
+  const safeMissingKeywords = Array.isArray(missingKeywords) ? missingKeywords : [];
   const normalizedSuggestions = normalizeAtsSuggestions(suggestions);
+  const { label } = getScoreColor(safeScore);
 
   return (
     <div className="space-y-6">
@@ -160,7 +168,7 @@ export default function ATSResult({ result, onAnalyzeAgain }) {
       {/* Score + overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="md:col-span-1 flex items-center justify-center py-8">
-          <ScoreRing score={atsScore} />
+          <ScoreRing score={safeScore} />
         </Card>
 
         <Card className="md:col-span-2">
@@ -176,11 +184,11 @@ export default function ATSResult({ result, onAnalyzeAgain }) {
             </p>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-3 text-center">
-                <p className="text-2xl font-bold text-green-600 dark:text-green-400">{matchedKeywords.length}</p>
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">{safeMatchedKeywords.length}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">Matched Keywords</p>
               </div>
               <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-center">
-                <p className="text-2xl font-bold text-red-600 dark:text-red-400">{missingKeywords.length}</p>
+                <p className="text-2xl font-bold text-red-600 dark:text-red-400">{safeMissingKeywords.length}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">Missing Keywords</p>
               </div>
             </div>
@@ -199,9 +207,9 @@ export default function ATSResult({ result, onAnalyzeAgain }) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {matchedKeywords.length > 0 ? (
+            {safeMatchedKeywords.length > 0 ? (
               <div className="flex flex-wrap gap-2">
-                {matchedKeywords.map((kw) => (
+                {safeMatchedKeywords.map((kw) => (
                   <KeywordBadge key={kw} word={kw} type="matched" />
                 ))}
               </div>
@@ -220,9 +228,9 @@ export default function ATSResult({ result, onAnalyzeAgain }) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {missingKeywords.length > 0 ? (
+            {safeMissingKeywords.length > 0 ? (
               <div className="flex flex-wrap gap-2">
-                {missingKeywords.map((kw) => (
+                {safeMissingKeywords.map((kw) => (
                   <KeywordBadge key={kw} word={kw} type="missing" />
                 ))}
               </div>

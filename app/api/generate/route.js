@@ -16,7 +16,7 @@ export async function POST(request) {
   const { userId } = await auth();
   const endpoint = "/api/generate";
   const subject = getRateLimitIdentifier(request, userId);
-  const rateLimit = enforceRateLimit({
+  const rateLimit = await enforceRateLimit({
     endpoint,
     subject,
     limitPerMinute: userId ? 20 : 5,
@@ -108,22 +108,24 @@ export async function POST(request) {
       );
     }
 
-    await db.message.create({
-      data: {
-        conversationId,
-        role: "user",
-        content: prompt,
-      },
-    });
+    if (user?.saveChatHistory ?? true) {
+      await db.message.create({
+        data: {
+          conversationId,
+          role: "user",
+          content: prompt,
+        },
+      });
 
-    await db.conversation.update({
-      where: {
-        id: conversationId,
-      },
-      data: {
-        updatedAt: new Date(),
-      },
-    });
+      await db.conversation.update({
+        where: {
+          id: conversationId,
+        },
+        data: {
+          updatedAt: new Date(),
+        },
+      });
+    }
   }
 
   const encoder = new TextEncoder();
@@ -175,22 +177,24 @@ Rules:
         }
 
         if (conversationId && fullResponse.trim()) {
-          await db.message.create({
-            data: {
-              conversationId,
-              role: "assistant",
-              content: fullResponse,
-            },
-          });
+          if (user?.saveChatHistory ?? true) {
+            await db.message.create({
+              data: {
+                conversationId,
+                role: "assistant",
+                content: fullResponse,
+              },
+            });
 
-          await db.conversation.update({
-            where: {
-              id: conversationId,
-            },
-            data: {
-              updatedAt: new Date(),
-            },
-          });
+            await db.conversation.update({
+              where: {
+                id: conversationId,
+              },
+              data: {
+                updatedAt: new Date(),
+              },
+            });
+          }
         }
 
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
