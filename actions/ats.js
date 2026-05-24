@@ -7,6 +7,7 @@ import { generateGeminiContent } from "@/lib/gemini";
 import { buildSecurePrompt } from "@/lib/prompt-safety";
 import { validateInput } from "@/lib/validate";
 import { atsAnalysisSchema } from "@/lib/schemas/forms";
+import { normalizeAtsSuggestions } from "@/lib/ats";
 
 /**
  * Runs an ATS analysis using Gemini AI and persists the result safely.
@@ -45,7 +46,9 @@ export async function analyzeATS(rawParams) {
   "atsScore": <number between 0 and 100>,
   "matchedKeywords": [<array of keywords found in both>],
   "missingKeywords": [<array of key missing keywords>],
-  "suggestions": [<array of practical improvements>],
+  "suggestions": [
+    { "category": "Keywords", "tip": "Add missing technical terms from the job description" }
+  ],
   "overallFeedback": "string highlighting strengths and gaps"
 }
 
@@ -68,7 +71,7 @@ IMPORTANT: Return ONLY valid JSON. No markdown, no explanation outside the JSON.
 
     const matchedKeywords = Array.isArray(parsedAnalysis.matchedKeywords) ? parsedAnalysis.matchedKeywords.map(String) : [];
     const missingKeywords = Array.isArray(parsedAnalysis.missingKeywords) ? parsedAnalysis.missingKeywords.map(String) : [];
-    const suggestions = Array.isArray(parsedAnalysis.suggestions) ? parsedAnalysis.suggestions.map(String) : [];
+    const suggestions = normalizeAtsSuggestions(parsedAnalysis.suggestions);
 
     const record = await db.aTSAnalysis.create({
       data: {

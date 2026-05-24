@@ -13,6 +13,7 @@ import {
   TrendingUp,
   Award,
 } from "lucide-react";
+import { normalizeAtsSuggestions } from "@/lib/ats";
 
 /* ── helpers ─────────────────────────────────────────── */
 function getScoreColor(score) {
@@ -71,6 +72,7 @@ function KeywordBadge({ word, type }) {
 async function downloadReport(result) {
   const { default: html2pdf } = await import("html2pdf.js");
   const { atsScore, jobTitle, companyName, matchedKeywords, missingKeywords, suggestions, overallFeedback, createdAt } = result;
+  const normalizedSuggestions = normalizeAtsSuggestions(suggestions);
   const { label } = getScoreColor(atsScore);
 
   const html = `
@@ -94,7 +96,7 @@ async function downloadReport(result) {
       <p style="margin-bottom:20px;">${missingKeywords.join(" · ")}</p>
 
       <h2 style="font-size:18px; margin-bottom:12px;">💡 Improvement Suggestions</h2>
-      ${suggestions.map(s => `
+      ${normalizedSuggestions.map(s => `
         <div style="border:1px solid #e2e8f0; border-radius:8px; padding:12px 16px; margin-bottom:10px;">
           <strong style="color:#6d28d9;">${s.category}</strong>
           <p style="margin:6px 0 0;">${s.tip}</p>
@@ -129,6 +131,7 @@ export default function ATSResult({ result, onAnalyzeAgain }) {
     suggestions = [],
     overallFeedback,
   } = result;
+  const normalizedSuggestions = normalizeAtsSuggestions(suggestions);
 
   return (
     <div className="space-y-6">
@@ -231,7 +234,7 @@ export default function ATSResult({ result, onAnalyzeAgain }) {
       </div>
 
       {/* Suggestions */}
-      {suggestions.length > 0 && (
+      {normalizedSuggestions.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -241,7 +244,7 @@ export default function ATSResult({ result, onAnalyzeAgain }) {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {suggestions.map((s, i) => (
+              {normalizedSuggestions.map((s, i) => (
                 <div
                   key={i}
                   className="flex gap-4 p-4 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"

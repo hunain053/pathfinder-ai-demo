@@ -27,6 +27,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
+import { normalizeAtsSuggestions } from "@/lib/ats";
 
 function ScoreBadge({ score }) {
   if (score >= 75)
@@ -40,6 +41,7 @@ function HistoryCard({ item, onDelete }) {
   const [expanded, setExpanded] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const suggestions = normalizeAtsSuggestions(item.suggestions);
 
   const handleDelete = () => {
     startTransition(async () => {
@@ -148,17 +150,17 @@ function HistoryCard({ item, onDelete }) {
             </div>
 
             {/* top suggestions */}
-            {item.suggestions?.length > 0 && (
+            {suggestions.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Top Suggestions</p>
-                {(item.suggestions || []).slice(0, 3).map((s, i) => (
+                {suggestions.slice(0, 3).map((s, i) => (
                   <div key={i} className="flex gap-2 text-sm p-2 rounded-md bg-muted/40">
                     <span className="text-violet-500 font-semibold flex-shrink-0">{s.category}:</span>
                     <span className="text-muted-foreground">{s.tip}</span>
                   </div>
                 ))}
-                {item.suggestions.length > 3 && (
-                  <p className="text-xs text-muted-foreground pl-1">+{item.suggestions.length - 3} more suggestions</p>
+                {suggestions.length > 3 && (
+                  <p className="text-xs text-muted-foreground pl-1">+{suggestions.length - 3} more suggestions</p>
                 )}
               </div>
             )}
