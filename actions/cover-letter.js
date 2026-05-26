@@ -3,11 +3,13 @@
 import { db } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { generateGeminiContent } from "@/lib/gemini";
-import { buildSecurePrompt } from "@/lib/prompt-safety";
+import { buildSecurePrompt, generateWithStructuredOutput } from "@/lib/prompt-safety";
+import { validateOutput } from "@/lib/validate";
+import { coverLetterOutputSchema } from "@/lib/schemas/outputs";
 
 /**
- * Generates a professional cover letter using Gemini AI.
- * If AI generation fails, saves a high-quality fallback cover letter.
+ * Generates a professional cover letter using Gemini AI with structured output validation.
+ * Falls back to a safe template if AI generation or validation fails.
  */
 export async function generateCoverLetter(data) {
   const { userId } = await auth();
@@ -23,7 +25,14 @@ export async function generateCoverLetter(data) {
   }
 
   const prompt = buildSecurePrompt({
-    task: "Write a professional cover letter for the position described below.",
+    task: `Write a professional cover letter for the position described below.
+
+Respond ONLY with a valid JSON object in this exact format (no markdown, no code fences):
+{
+  "greeting": "Dear Hiring Manager,",
+  "body": "<2-3 paragraphs, professional tone, max 300 words>",
+  "closing": "Sincerely,\\n<candidate name>"
+}`,
     context: "You are a professional career coach and cover letter writer.",
     untrustedData: [
       { label: "jobTitle", value: data.jobTitle, maxLength: 200 },
@@ -35,18 +44,34 @@ export async function generateCoverLetter(data) {
       { label: "bio", value: user.bio || "Not specified", maxLength: 2000 },
       { label: "jobDescription", value: data.jobDescription, maxLength: 8000 },
     ],
-    outputRules: `Requirements:
-- Professional, engaging, and persuasive tone
-- Max 400 words
-- Highlight how the candidate's skills and experience match the job description
-- Use markdown formatting for readability`,
   });
 
-  try {
-    const result = await generateGeminiContent(prompt);
-    const content = result.response.text().trim();
+  const schemaDescription = `{
+  "greeting": "string (e.g. Dear Hiring Manager,)",
+  "body": "string (cover letter body, 2-3 paragraphs)",
+  "closing": "string (e.g. Sincerely, <name>)"
+}`;
 
-    if (!content) throw new Error("AI response was empty.");
+  try {
+    const result = await generateWithStructuredOutput({
+      prompt,
+      schemaDescription,
+      schema: coverLetterOutputSchema,
+      generateFn: async (p) => {
+        const raw = await generateGeminiContent(p);
+        return raw.response.text().trim();
+      },
+      validateFn: validateOutput,
+    });
+
+    if (!result.success) {
+      console.error("Cover letter output validation failed:", result.errors);
+      throw new Error("AI returned an unexpected format.");
+    }
+
+    // Reassemble sections into a single markdown string for backward compatibility
+    const { greeting, body, closing } = result.data;
+    const content = `${greeting}\n\n${body}\n\n${closing}`;
 
     const coverLetter = await db.coverLetter.create({
       data: {
