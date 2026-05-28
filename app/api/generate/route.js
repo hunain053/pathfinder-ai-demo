@@ -11,7 +11,10 @@ import {
   preparePromptForGeneration,
   buildSseErrorResponse,
 } from "@/lib/prompt-guard";
-
+import {
+  getCachedResponse,
+  cacheResponse,
+} from "@/lib/cache/cache-service";
 const SSE_HEADERS = {
   "Content-Type": "text/event-stream; charset=utf-8",
   "Cache-Control": "no-cache, no-store, must-revalidate, no-transform",
@@ -21,6 +24,7 @@ const SSE_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
+
 
 const encodeSseEvent = (encoder, event, payload) => {
   const safePayload = payload ?? {};
@@ -50,6 +54,7 @@ export async function OPTIONS() {
 }
 
 export async function POST(request) {
+  
   const { userId } = await auth();
   const endpoint = "/api/generate";
   const subject = getRateLimitIdentifier(request, userId);
@@ -135,6 +140,44 @@ export async function POST(request) {
       headers: { "Content-Type": "application/json" },
     });
   }
+  const cacheUser = userId || request.headers.get("x-forwarded-for") || "anonymous";
+
+  const existingCachedResponse = await getCachedResponse(
+    cacheUser,
+    promptCheck.prompt
+  );
+
+  if (existingCachedResponse) {
+  const encoder = new TextEncoder();
+
+  const cachedStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(
+        encodeSseEvent(encoder, "delta", {
+          text: existingCachedResponse,
+          cached: true,
+        })
+      );
+
+      controller.enqueue(
+        encodeSseEvent(encoder, "done", {
+          finalText: existingCachedResponse,
+          hasContent: true,
+          cached: true,
+        })
+      );
+
+      controller.close();
+    },
+  });
+
+  return new Response(cachedStream, {
+    headers: {
+      ...SSE_HEADERS,
+      "X-Cache": "HIT",
+    },
+  });
+}
 
   if (conversationId) {
     try {
@@ -270,7 +313,13 @@ Rules:
             }
           }
         }
-
+        if (fullResponse.trim()) {
+          await cacheResponse(
+            cacheUser,
+            promptCheck.prompt,
+            fullResponse
+          );
+        }
         safeEnqueue("done", {
           finalText: fullResponse,
           hasContent: Boolean(fullResponse.trim()),
