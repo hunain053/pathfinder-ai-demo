@@ -5,7 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { generateGeminiContent } from "@/lib/gemini";
 import { buildSecurePrompt } from "@/lib/prompt-safety";
-import { validateInput } from "@/lib/validate";
+import { validateInput, parseAIJson } from "@/lib/validate";
 import { atsAnalysisSchema } from "@/lib/schemas/forms";
 import { normalizeAtsSuggestions } from "@/lib/ats";
 
@@ -64,10 +64,7 @@ IMPORTANT: Return ONLY valid JSON. No markdown, no explanation outside the JSON.
     });
 
     const result = await generateGeminiContent(prompt);
-    const text = result.response.text().trim();
-
-    const cleanJsonText = text.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
-    const parsedAnalysis = JSON.parse(cleanJsonText);
+    const parsedAnalysis = parseAIJson(result.response.text());
 
     const matchedKeywords = Array.isArray(parsedAnalysis.matchedKeywords) ? parsedAnalysis.matchedKeywords.map(String) : [];
     const missingKeywords = Array.isArray(parsedAnalysis.missingKeywords) ? parsedAnalysis.missingKeywords.map(String) : [];

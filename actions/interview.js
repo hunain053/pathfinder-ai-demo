@@ -4,6 +4,7 @@ import { db } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { generateGeminiContent } from "@/lib/gemini";
 import { buildSecurePrompt } from "@/lib/prompt-safety";
+import { parseAIJson } from "@/lib/validate";
 
 // Fallback MCQ questions in case Gemini generation fails
 const FALLBACK_QUESTIONS = [
@@ -185,9 +186,7 @@ Return ONLY a valid JSON object matching this schema. Do not output any markdown
 
   try {
     const result = await generateGeminiContent(prompt);
-    const text = result.response.text();
-    const cleaned = text.replace(/```(?:json)?[\r\n]?/g, "").trim();
-    const quiz = JSON.parse(cleaned);
+    const quiz = parseAIJson(result.response.text());
 
     if (!quiz || !Array.isArray(quiz.questions) || quiz.questions.length === 0) {
       throw new Error("Invalid questions structure received from AI.");
