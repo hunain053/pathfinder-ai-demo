@@ -30,13 +30,7 @@ export async function updateUser(data) {
     });
 
     if (!existingInsight) {
-      try {
-        precomputedInsights = await generateAIInsights(data.industry, data);
-      } catch (e) {
-        // generateAIInsights already handles fallbacks, but guard here
-        console.error("Failed to generate insights pre-transaction:", e);
-        precomputedInsights = null;
-      }
+      precomputedInsights = await generateAIInsights(data.industry, data);
     }
 
     const result = await db.$transaction(
@@ -49,12 +43,16 @@ export async function updateUser(data) {
         });
 
         if (!industryInsight) {
-          const insights = precomputedInsights ?? (await generateAIInsights(data.industry, data));
+          // If industryInsight is missing, we must use precomputedInsights.
+          // We moved the AI call outside the transaction to prevent connection pool exhaustion.
+          if (!precomputedInsights) {
+            throw new Error("Industry insights are currently unavailable. Please try again.");
+          }
 
           industryInsight = await tx.industryInsight.create({
             data: {
               industry: data.industry,
-              ...insights,
+              ...precomputedInsights,
               nextUpdate: getIndustryInsightRefreshTime(),
             },
           });
