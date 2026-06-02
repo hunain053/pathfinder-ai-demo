@@ -13,16 +13,14 @@ import {
   buildSseErrorResponse,
 } from "@/lib/prompt-guard";
 import {
-<<<<<<< HEAD
   buildCorsDeniedResponse,
   resolveCorsPolicy,
 } from "@/lib/cors";
-=======
+import {
   getCachedResponse,
   cacheResponse,
 } from "@/lib/cache/cache-service";
 import { respondError, respondSseError, ERROR_CODES } from "@/lib/api/error-handler";
->>>>>>> upstream/main
 
 const SSE_BASE_HEADERS = {
   "Content-Type": "text/event-stream; charset=utf-8",
@@ -83,16 +81,11 @@ export async function OPTIONS(request) {
 }
 
 export async function POST(request) {
-<<<<<<< HEAD
   const headers = buildSseHeaders(request);
 
   if (!headers) {
     return buildCorsDeniedResponse();
   }
-
-=======
-  
->>>>>>> upstream/main
   const { userId } = await auth();
   const endpoint = "/api/generate";
   const subject = getRateLimitIdentifier(request, userId);
