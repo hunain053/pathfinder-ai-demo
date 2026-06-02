@@ -154,9 +154,9 @@ export default function Footer() {
         <div className="pt-10 border-t border-border flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-muted-foreground dark:text-gray-300">
           <p>© {new Date().getFullYear()} Pathfinder AI. All rights reserved.</p>
           <div className="flex gap-6">
-            <Link href="#" className="hover:text-primary transition-colors">Privacy Policy</Link>
-            <Link href="#" className="hover:text-primary transition-colors">Terms of Service</Link>
-            <Link href="#" className="hover:text-primary transition-colors">Cookies</Link>
+            <Link href="/privacy-policy" className="hover:text-primary transition-colors">Privacy Policy</Link>
+            <Link href="/terms-of-service" className="hover:text-primary transition-colors">Terms of Service</Link>
+            <Link href="/cookies" className="hover:text-primary transition-colors">Cookies</Link>
           </div>
         </div>
       </div>
