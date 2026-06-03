@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/prisma";
 import { respondError, ERROR_CODES } from "@/lib/api/error-handler";
+import { userPreferencesSchema } from "@/lib/schemas/forms";
 
 const DEFAULT_PREFERENCES = {
   saveChatHistory: true,
@@ -53,14 +54,20 @@ export async function PATCH(request) {
       return respondError(ERROR_CODES.VALIDATION_ERROR, "Invalid request body");
     }
 
-    if (typeof body.saveChatHistory !== "boolean") {
-      return respondError(ERROR_CODES.VALIDATION_ERROR, "saveChatHistory must be a boolean");
+    const validation = userPreferencesSchema.safeParse(body);
+
+    if (!validation.success) {
+      return respondError(
+        ERROR_CODES.VALIDATION_ERROR,
+        "Invalid user preferences payload",
+        validation.error.flatten().fieldErrors
+      );
     }
 
     try {
       const updatedUser = await db.user.update({
         where: { clerkUserId: userId },
-        data: { saveChatHistory: body.saveChatHistory },
+        data: { saveChatHistory: validation.data.saveChatHistory },
         select: { saveChatHistory: true },
       });
 
@@ -75,7 +82,7 @@ export async function PATCH(request) {
       }
 
       return Response.json({
-        saveChatHistory: body.saveChatHistory,
+        saveChatHistory: validation.data.saveChatHistory,
         warning: "Field not persisted in database (column missing)"
       });
     }

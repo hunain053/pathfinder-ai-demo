@@ -10,7 +10,6 @@ import {
 } from "@/lib/rate-limit";
 import {
   preparePromptForGeneration,
-  buildSseErrorResponse,
 } from "@/lib/prompt-guard";
 import {
   buildCorsDeniedResponse,
@@ -21,6 +20,8 @@ import {
   cacheResponse,
 } from "@/lib/cache/cache-service";
 import { respondError, respondSseError, ERROR_CODES } from "@/lib/api/error-handler";
+import { validateInput, validateId } from "@/lib/validate";
+import { chatPromptSchema } from "@/lib/schemas/forms";
 
 const SSE_BASE_HEADERS = {
   "Content-Type": "text/event-stream; charset=utf-8",
@@ -130,14 +131,23 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    prompt = body.prompt;
-    conversationId = body.conversationId;
+
+    const promptValidation = validateInput(chatPromptSchema, { prompt: body.prompt });
+    if (!promptValidation.success) {
+      return respondError(ERROR_CODES.VALIDATION_ERROR, "Invalid prompt", promptValidation.errors);
+    }
+
+    prompt = promptValidation.data.prompt;
+
+    if (body.conversationId !== undefined && body.conversationId !== null && body.conversationId !== "") {
+      const conversationIdValidation = validateId(body.conversationId, "conversationId");
+      if (!conversationIdValidation.success) {
+        return respondError(ERROR_CODES.VALIDATION_ERROR, "Conversation ID is required", conversationIdValidation.errors);
+      }
+      conversationId = conversationIdValidation.data;
+    }
   } catch {
     return respondError(ERROR_CODES.VALIDATION_ERROR, "Invalid request body");
-  }
-
-  if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-    return buildSseErrorResponse("Prompt is required", 400);
   }
 
   const promptCheck = preparePromptForGeneration(prompt);

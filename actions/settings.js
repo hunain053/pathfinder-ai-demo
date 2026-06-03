@@ -3,6 +3,8 @@
 import { db } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
+import { validateInput } from "@/lib/validate";
+import { userSettingsSchema } from "@/lib/schemas/forms";
 
 async function getUserByClerkId(userId) {
   try {
@@ -26,13 +28,6 @@ function normalizeSettings(settings) {
   return {
     notifications: settings.notifications ?? true,
     emailAlerts: settings.emailAlerts ?? true,
-  };
-}
-
-function normalizeSettingsInput(data) {
-  return {
-    notifications: Boolean(data.notifications),
-    emailAlerts: Boolean(data.emailAlerts),
   };
 }
 
@@ -70,8 +65,14 @@ export async function updateUserSettings(userId, data) {
   }
 
   try {
+    const validation = validateInput(userSettingsSchema, data);
+
+    if (!validation.success) {
+      return { success: false, errors: validation.errors };
+    }
+
     const user = await getUserByClerkId(userId);
-    const settingsData = normalizeSettingsInput(data);
+    const settingsData = validation.data;
 
     const existingSettings = await db.userSettings.findUnique({
       where: { userId: user.id },

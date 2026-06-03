@@ -1,9 +1,17 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/prisma";
 import { respondError, ERROR_CODES } from "@/lib/api/error-handler";
+import { messageCreateSchema } from "@/lib/schemas/forms";
+import { validateId } from "@/lib/validate";
 
 export async function POST(request, context) {
   const params = await context.params;
+  const idValidation = validateId(params.id);
+
+  if (!idValidation.success) {
+    return respondError(ERROR_CODES.VALIDATION_ERROR, "Conversation ID is required", idValidation.errors);
+  }
+
   try {
     const { userId } = await auth();
 
@@ -23,7 +31,7 @@ export async function POST(request, context) {
 
     const conversation = await db.conversation.findFirst({
       where: {
-        id: params.id,
+        id: idValidation.data,
         userId: user.id,
       },
     });
@@ -32,30 +40,42 @@ export async function POST(request, context) {
       return respondError(ERROR_CODES.RESOURCE_NOT_FOUND, "Conversation not found");
     }
 
-    const body = await request.json();
-    const { role, content } = body;
-
-    if (!role || !content) {
-      return respondError(ERROR_CODES.VALIDATION_ERROR, "Role and content are required");
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return respondError(ERROR_CODES.VALIDATION_ERROR, "Invalid request body");
     }
+
+    const validation = messageCreateSchema.safeParse(body);
+
+    if (!validation.success) {
+      return respondError(
+        ERROR_CODES.VALIDATION_ERROR,
+        "Invalid message payload",
+        validation.error.flatten().fieldErrors
+      );
+    }
+
+    const { role, content } = validation.data;
 
     const message = await db.message.create({
       data: {
-        conversationId: params.id,
+        conversationId: idValidation.data,
         role,
         content,
       },
     });
 
     await db.conversation.updateMany({
-   where: {
-    id: params.id,
-    userId: user.id,
-  },
-  data: {
-    updatedAt: new Date(),
-  },
-});
+      where: {
+        id: idValidation.data,
+        userId: user.id,
+      },
+      data: {
+        updatedAt: new Date(),
+      },
+    });
 
     return Response.json(message);
   } catch (error) {
