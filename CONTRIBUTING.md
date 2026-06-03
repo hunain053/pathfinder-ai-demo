@@ -30,6 +30,12 @@ By participating in this project, you agree to keep this space respectful, inclu
 
 ---
 
+## License
+
+By contributing to PathFinder AI, you agree that your contributions will be licensed under the **MIT License** that covers this project. See the [`LICENSE`](LICENSE) file at the project root for full details.
+
+---
+
 ## Getting Started
 
 ### Fork & Clone the Repository
@@ -335,12 +341,12 @@ Not sure where to start? Here are some great entry points:
 
 ---
 
-*This guide is open to improvement too. If something is unclear or missing — feel free to open a PR or issue for it.*
+_This guide is open to improvement too. If something is unclear or missing — feel free to open a PR or issue for it._
 
 ---
 
 <div align="center">
 
-**PathFinder AI** — *Smart Careers Start Here.*
+**PathFinder AI** — _Smart Careers Start Here._
 
 </div>
