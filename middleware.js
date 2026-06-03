@@ -24,11 +24,12 @@ const isApiRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
-  const { userId } = await auth();
 
   if (isPublicRoute(req)) {
     return NextResponse.next();
   }
+
+  const { userId } = await auth();
 
   if (isAppRoute(req)) {
     if (!userId) {
@@ -36,19 +37,22 @@ export default clerkMiddleware(async (auth, req) => {
       signInUrl.searchParams.set("redirect_url", req.nextUrl.pathname);
       return NextResponse.redirect(signInUrl);
     }
+    return NextResponse.next();
   }
 
   if (isApiRoute(req) && !isPublicRoute(req)) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    return NextResponse.next();
   }
+
+  return NextResponse.next();
 });
 
 export const config = {
   matcher: [
     "/((?!_next|.*\\..*).*)",
-    "/",
     "/(api|trpc)(.*)",
   ],
 };
