@@ -290,8 +290,6 @@ export async function saveQuizResult(questions, answers, score, category = "Tech
       context: profileContext,
       task: "You are a supportive career mentor. The candidate completed a quiz. Provide an encouraging, actionable improvement tip (strictly max 2 sentences) recommending key learning areas. Be positive, warm, and professional. Do not refer to question indexes or speak critically.",
       untrustedData: [
-        { label: "category", value: category, maxLength: 200 },
-        { label: "score", value: String(score), maxLength: 50 },
         { label: "industry", value: user.industry || "software", maxLength: 200 },
         { label: "category", value: validatedCategory, maxLength: 200 },
         { label: "score", value: String(validatedScore), maxLength: 50 },
