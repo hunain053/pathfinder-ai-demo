@@ -51,7 +51,14 @@ describe("chatWithGemini", () => {
   });
 
   it("rejects whitespace-only prompts", async () => {
-    await expect(chatWithGemini("   ")).rejects.toThrow("Prompt is required");
+  await expect(chatWithGemini("   ")).resolves.toEqual(
+    expect.objectContaining({
+      success: false,
+      errors: expect.objectContaining({
+        prompt: expect.any(Array),
+        }),
+      })
+    );
   });
 
   it("wraps the prompt before sending it to Gemini", async () => {
