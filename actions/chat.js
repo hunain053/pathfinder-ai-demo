@@ -16,7 +16,7 @@ export async function chatWithGemini(prompt) {
   const validatedPrompt = validation.data;
 import { validateInput } from "@/lib/validate";
 import { chatPromptSchema } from "@/lib/schemas/forms";
-import { checkRateLimit, formatResetTime } from "@/lib/rate-limit";
+import { checkRateLimit, formatResetTime } from "@/lib/rate-limit-actions";
 
 export async function chatWithGemini(prompt) {
   const validation = validateInput(chatPromptSchema, { prompt });

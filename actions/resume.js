@@ -10,7 +10,7 @@ import { buildUserProfileContext } from "@/lib/ai-context";
 import { validateInput, validateOutput } from "@/lib/validate";
 import { resumeSaveSchema, resumeImprovementSchema } from "@/lib/schemas/forms";
 import { resumeImprovementOutputSchema, SCHEMA_DESCRIPTIONS } from "@/lib/schemas/outputs";
-import { checkRateLimit, formatResetTime } from "@/lib/rate-limit";
+import { checkRateLimit, formatResetTime } from "@/lib/rate-limit-actions";
 
 export async function saveResume(rawContent) {
   const { userId } = await auth();

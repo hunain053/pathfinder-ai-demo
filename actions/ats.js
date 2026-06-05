@@ -10,7 +10,7 @@ import { buildUserProfileContext } from "@/lib/ai-context";
 import { validateInput, parseAIJson } from "@/lib/validate";
 import { atsAnalysisSchema } from "@/lib/schemas/forms";
 import { normalizeAtsSuggestions } from "@/lib/ats";
-import { checkRateLimit, formatResetTime } from "@/lib/rate-limit";
+import { checkRateLimit, formatResetTime } from "@/lib/rate-limit-actions";
 
 /**
  * Runs an ATS analysis using Gemini AI and persists the result safely.

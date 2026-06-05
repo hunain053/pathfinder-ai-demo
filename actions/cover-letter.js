@@ -8,7 +8,7 @@ import { buildUserProfileContext } from "@/lib/ai-context";
 import { validateInput, validateOutput } from "@/lib/validate";
 import { coverLetterInputSchema } from "@/lib/schemas/forms";
 import { coverLetterOutputSchema, SCHEMA_DESCRIPTIONS } from "@/lib/schemas/outputs";
-import { checkRateLimit, formatResetTime } from "@/lib/rate-limit";
+import { checkRateLimit, formatResetTime } from "@/lib/rate-limit-actions";
 
 /**
  * Generates a professional cover letter using Gemini AI with structured output validation.
