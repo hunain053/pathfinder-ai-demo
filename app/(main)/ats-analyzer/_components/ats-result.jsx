@@ -19,6 +19,7 @@ import {
   Award,
 } from "lucide-react";
 
+import DOMPurify from "dompurify";
 import { normalizeAtsSuggestions } from "@/lib/ats";
 
 /* ───────────────── helpers ───────────────── */
@@ -240,7 +241,7 @@ async function downloadReport(result) {
 
   const el = document.createElement("div");
 
-  el.innerHTML = html;
+  el.innerHTML = DOMPurify.sanitize(html);
 
   document.body.appendChild(el);
 

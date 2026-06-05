@@ -9,7 +9,7 @@ import { buildUserProfileContext } from "@/lib/ai-context";
 import { validateInput, validateOutput } from "@/lib/validate";
 import { quizCategorySchema, quizResultSaveSchema } from "@/lib/schemas/forms";
 import { interviewQuestionsOutputSchema } from "@/lib/schemas/outputs";
-import { checkRateLimit, formatResetTime } from "@/lib/rate-limit";
+import { checkRateLimit, formatResetTime } from "@/lib/rate-limit-actions";
 
 // Fallback MCQ questions in case Gemini generation fails
 const FALLBACK_QUESTIONS = [
