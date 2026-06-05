@@ -3,6 +3,7 @@ import { generateGeminiContentStream } from "@/lib/gemini";
 import { db } from "@/lib/prisma";
 import { buildSecurePrompt } from "@/lib/prompt-safety";
 import { buildUserAiContext } from "@/lib/ai-context";
+import { chatPromptSchema as chatPromptSchemaStr } from "@/lib/schemas/chat";
 import {
   getRateLimitIdentifier,
   enforceRateLimit,
@@ -10,23 +11,43 @@ import {
 } from "@/lib/rate-limit";
 import {
   preparePromptForGeneration,
-  buildSseErrorResponse,
 } from "@/lib/prompt-guard";
+import {
+  buildCorsDeniedResponse,
+  resolveCorsPolicy,
+} from "@/lib/cors";
 import {
   getCachedResponse,
   cacheResponse,
 } from "@/lib/cache/cache-service";
 import { respondError, respondSseError, ERROR_CODES } from "@/lib/api/error-handler";
+import { validateInput, validateId } from "@/lib/validate";
+import { chatPromptSchema } from "@/lib/schemas/forms";
 
-const SSE_HEADERS = {
+const SSE_BASE_HEADERS = {
   "Content-Type": "text/event-stream; charset=utf-8",
   "Cache-Control": "no-cache, no-store, must-revalidate, no-transform",
   Connection: "keep-alive",
   "X-Accel-Buffering": "no",
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
+
+function buildSseHeaders(request) {
+  const corsPolicy = resolveCorsPolicy(request);
+
+  if (!corsPolicy.allowed) {
+    return null;
+  }
+
+  const headers = new Headers(SSE_BASE_HEADERS);
+
+  if (corsPolicy.headers) {
+    corsPolicy.headers.forEach((value, key) => {
+      headers.set(key, value);
+    });
+  }
+
+  return headers;
+}
 
 const encodeSseEvent = (encoder, event, payload) => {
   const safePayload = payload ?? {};
@@ -48,15 +69,27 @@ const extractChunkText = (chunk) => {
   }
 };
 
-export async function OPTIONS() {
+export async function OPTIONS(request) {
+  const headers = buildSseHeaders(request);
+
+  if (!headers) {
+    return buildCorsDeniedResponse();
+  }
+
   return new Response(null, {
     status: 204,
-    headers: SSE_HEADERS,
+    headers,
   });
 }
 
 export async function POST(request) {
   const isDev = process.env.NODE_ENV !== "production";
+
+  const headers = buildSseHeaders(request);
+
+  if (!headers) {
+    return buildCorsDeniedResponse();
+  }
   const { userId } = await auth();
   const endpoint = "/api/generate";
   const subject = getRateLimitIdentifier(request, userId);
@@ -99,17 +132,32 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    prompt = body.prompt;
-    conversationId = body.conversationId;
+
+    const promptValidation = validateInput(chatPromptSchema, { prompt: body.prompt });
+    if (!promptValidation.success) {
+      return respondError(ERROR_CODES.VALIDATION_ERROR, "Invalid prompt", promptValidation.errors);
+    }
+
+    prompt = promptValidation.data.prompt;
+
+    if (body.conversationId !== undefined && body.conversationId !== null && body.conversationId !== "") {
+      const conversationIdValidation = validateId(body.conversationId, "conversationId");
+      if (!conversationIdValidation.success) {
+        return respondError(ERROR_CODES.VALIDATION_ERROR, "Conversation ID is required", conversationIdValidation.errors);
+      }
+      conversationId = conversationIdValidation.data;
+    }
   } catch {
     return respondError(ERROR_CODES.VALIDATION_ERROR, "Invalid request body");
   }
 
-  if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-    return buildSseErrorResponse("Prompt is required", 400);
+  const validation = chatPromptSchemaStr.safeParse(prompt);
+  if (!validation.success) {
+    return buildSseErrorResponse(validation.error.errors[0].message, 400);
   }
 
-  const promptCheck = preparePromptForGeneration(prompt);
+  const validatedPrompt = validation.data;
+  const promptCheck = preparePromptForGeneration(validatedPrompt);
 
   if (!promptCheck.allowed) {
     return buildSseErrorResponse(promptCheck.message, promptCheck.status);
@@ -179,7 +227,8 @@ export async function POST(request) {
     : [];
 
   const aiContext = buildUserAiContext(user, recentMessages.reverse());
-  const cacheUser = userId || request.headers.get("x-forwarded-for") || "anonymous";
+  const clientIp = request.headers.get("x-real-ip") || "anonymous";
+  const cacheUser = userId || clientIp;
 
   const restrictedPrompt = buildSecurePrompt({
     context: aiContext.context,
@@ -274,10 +323,11 @@ Rules:
     });
 
     return new Response(cachedStream, {
-      headers: {
-        ...SSE_HEADERS,
-        "X-Cache": "HIT",
-      },
+      headers: (() => {
+        const h = new Headers(headers);
+        h.set("X-Cache", "HIT");
+        return h;
+      })(),
     });
   }
 
@@ -389,6 +439,6 @@ Rules:
   });
 
   return new Response(stream, {
-    headers: SSE_HEADERS,
+    headers,
   });
 }

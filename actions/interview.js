@@ -6,7 +6,10 @@ import { generateGeminiContent } from "@/lib/gemini";
 import { cachedGenerateGeminiContent, QUIZ_CACHE_TTL_MS, generateCacheKey } from "@/lib/cache";
 import { buildSecurePrompt } from "@/lib/prompt-safety";
 import { buildUserProfileContext } from "@/lib/ai-context";
-import { parseAIJson } from "@/lib/validate";
+import { validateInput, validateOutput } from "@/lib/validate";
+import { quizCategorySchema, quizResultSaveSchema } from "@/lib/schemas/forms";
+import { interviewQuestionsOutputSchema } from "@/lib/schemas/outputs";
+import { checkRateLimit, formatResetTime } from "@/lib/rate-limit-actions";
 
 // Fallback MCQ questions in case Gemini generation fails
 const FALLBACK_QUESTIONS = [
@@ -129,6 +132,13 @@ export async function generateQuiz(category = "Technical") {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 
+  const quizLimit = await checkRateLimit(userId, "quiz");
+  if (!quizLimit.allowed) {
+    throw new Error(`Quiz generation limit reached. Resets in ${formatResetTime(quizLimit.resetAt)}.`);
+  }
+  const categoryValidation = validateInput(quizCategorySchema, { category });
+  if (!categoryValidation.success) return { success: false, errors: categoryValidation.errors };
+
   const user = await db.user.findUnique({
     where: { clerkUserId: userId },
     select: {
@@ -145,6 +155,7 @@ export async function generateQuiz(category = "Technical") {
   if (!user) throw new Error("User not found");
 
   const profileContext = buildUserProfileContext(user);
+  const validatedCategory = categoryValidation.data.category;
 
   const normalizedSkills = user.skills
     ? Array.from(new Set(user.skills.map((s) => String(s).trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
@@ -154,22 +165,23 @@ export async function generateQuiz(category = "Technical") {
     Technical: "Generate 10 technical interview questions focusing on programming concepts, data structures, system design, algorithms, and practical technical knowledge.",
     Behavioral: "Generate 10 behavioral interview questions focusing on teamwork, leadership, conflict resolution, communication, and past experiences. Use scenarios like 'Tell me about a time when...' or 'How would you handle...'",
     Situational: "Generate 10 situational interview questions focusing on hypothetical workplace scenarios — how the candidate would handle specific on-the-job situations, ethical dilemmas, and decision-making.",
+    "Industry Knowledge": "Generate 10 industry knowledge interview questions focusing on domain trends, terminology, business context, and role-specific professional awareness.",
   };
 
-  const categoryIntro = categoryPrompts[category] || categoryPrompts.Technical;
+  const categoryIntro = categoryPrompts[validatedCategory];
 
   const prompt = buildSecurePrompt({
-    context: profileContext,
+    context: `${profileContext}\n\nThe candidate has listed their industry, skills, and a quiz category below.`,
     task: `You are a highly experienced hiring manager and strict quiz generator.
 
 ${categoryIntro}
 
 Generate EXACTLY 10 UNIQUE MCQ questions.`,
-    context: "The candidate has listed their industry, skills, and a quiz category below.",
     untrustedData: [
+      { label: "category", value: category, maxLength: 200 },
       { label: "industry", value: user.industry || "software", maxLength: 200 },
       { label: "skills", value: normalizedSkills.join(", ") || "Not specified", maxLength: 1000 },
-      { label: "category", value: category, maxLength: 200 },
+      { label: "category", value: validatedCategory, maxLength: 200 },
     ],
     outputRules: `RULES:
 - Exactly 10 questions only. No repetition.
@@ -200,13 +212,13 @@ Return ONLY a valid JSON object matching this schema. Do not output any markdown
 
   try {
     const result = await generateGeminiContent(prompt);
-    const quiz = parseAIJson(result.response.text());
+    const quizValidation = validateOutput(interviewQuestionsOutputSchema, result.response.text());
 
-    if (!quiz || !Array.isArray(quiz.questions) || quiz.questions.length === 0) {
+    if (!quizValidation.success || !quizValidation.data?.questions?.length) {
       throw new Error("Invalid questions structure received from AI.");
     }
 
-    return quiz.questions.slice(0, 10);
+    return quizValidation.data.questions.slice(0, 10);
   } catch (error) {
     console.error("AI Quiz generation failed, using default questions:", error);
     return FALLBACK_QUESTIONS;
@@ -219,30 +231,36 @@ Return ONLY a valid JSON object matching this schema. Do not output any markdown
 export async function saveQuizResult(questions, answers, score, category = "Technical") {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
+  
+  const feedbackLimit = await checkRateLimit(userId, "quizFeedback");
+  if (!feedbackLimit.allowed) {
+    throw new Error(`Quiz feedback limit reached. Resets in ${formatResetTime(feedbackLimit.resetAt)}.`);
+  }
+
+  const validation = validateInput(quizResultSaveSchema, { questions, answers, score, category });
+  if (!validation.success) return { success: false, errors: validation.errors };
+
+  const {
+    questions: validatedQuestions,
+    answers: validatedAnswers,
+    score: validatedScore,
+    category: validatedCategory,
+  } = validation.data;
 
   const user = await db.user.findUnique({
     where: { clerkUserId: userId },
   });
   if (!user) throw new Error("User not found");
 
-  const profileContext = buildUserProfileContext(user);
-
-  const sanitizedAnswers = Array.isArray(answers)
-    ? answers.slice(0, questions.length)
-    : [];
-
-  while (sanitizedAnswers.length < questions.length) {
-    sanitizedAnswers.push(null);
-  }
-
   // Map user answers to question outcomes
   const questionResults = [];
   const wrongAnswers = [];
+  const profileContext = buildUserProfileContext(user);
 
-  questions.forEach((q, index) => {
+  validatedQuestions.forEach((q, index) => {
     if (!q?.question) return;
 
-    const userAnswer = sanitizedAnswers[index];
+    const userAnswer = validatedAnswers[index];
     const isCorrect = q.correctAnswer === userAnswer;
 
     const mappedQuestion = {
@@ -273,9 +291,11 @@ export async function saveQuizResult(questions, answers, score, category = "Tech
       context: profileContext,
       task: "You are a supportive career mentor. The candidate completed a quiz. Provide an encouraging, actionable improvement tip (strictly max 2 sentences) recommending key learning areas. Be positive, warm, and professional. Do not refer to question indexes or speak critically.",
       untrustedData: [
-        { label: "industry", value: user.industry || "software", maxLength: 200 },
         { label: "category", value: category, maxLength: 200 },
         { label: "score", value: String(score), maxLength: 50 },
+        { label: "industry", value: user.industry || "software", maxLength: 200 },
+        { label: "category", value: validatedCategory, maxLength: 200 },
+        { label: "score", value: String(validatedScore), maxLength: 50 },
         { label: "wrongAnswers", value: wrongText, maxLength: 4000 },
       ],
     });
@@ -293,9 +313,9 @@ export async function saveQuizResult(questions, answers, score, category = "Tech
     const assessment = await db.assessment.create({
       data: {
         userId: user.id,
-        quizScore: score,
+        quizScore: validatedScore,
         questions: questionResults,
-        category,
+        category: validatedCategory,
         improvementTip,
       },
     });
@@ -337,7 +357,7 @@ export async function getAssessment(id) {
   });
   if (!user) return null;
 
-  const assessment = await db.assessment.findUnique({
+  const assessment = await db.assessment.findFirst({
     where: {
       id,
       userId: user.id,

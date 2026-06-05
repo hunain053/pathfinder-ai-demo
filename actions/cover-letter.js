@@ -5,8 +5,10 @@ import { auth } from "@clerk/nextjs/server";
 import { generateGeminiContent } from "@/lib/gemini";
 import { buildSecurePrompt, generateWithStructuredOutput } from "@/lib/prompt-safety";
 import { buildUserProfileContext } from "@/lib/ai-context";
-import { validateOutput } from "@/lib/validate";
+import { validateInput, validateOutput } from "@/lib/validate";
+import { coverLetterInputSchema } from "@/lib/schemas/forms";
 import { coverLetterOutputSchema, SCHEMA_DESCRIPTIONS } from "@/lib/schemas/outputs";
+import { checkRateLimit, formatResetTime } from "@/lib/rate-limit-actions";
 
 /**
  * Generates a professional cover letter using Gemini AI with structured output validation.
@@ -16,17 +18,23 @@ export async function generateCoverLetter(data) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 
+  const limit = await checkRateLimit(userId, "coverLetter");
+  if (!limit.allowed) {
+    throw new Error(`Cover letter limit reached. Resets in ${formatResetTime(limit.resetAt)}.`);
+  }
+
+  const validation = validateInput(coverLetterInputSchema, data);
+  if (!validation.success) return { success: false, errors: validation.errors };
+
   const user = await db.user.findUnique({
     where: { clerkUserId: userId },
   });
   if (!user) throw new Error("User not found");
 
-  if (!data?.jobTitle || !data?.companyName || !data?.jobDescription) {
-    throw new Error("Missing required fields");
-  }
+  const { jobTitle, companyName, jobDescription } = validation.data;
 
   const prompt = buildSecurePrompt({
-    context: buildUserProfileContext(user),
+    context: `${buildUserProfileContext(user)}\n\nYou are a professional career coach and cover letter writer.`,
     task: `Write a professional cover letter for the position described below.
 
 Use only the candidate facts provided in the input. Do not invent projects, achievements,
@@ -39,16 +47,18 @@ Respond ONLY with a valid JSON object in this exact format (no markdown, no code
   "body": "<2-3 paragraphs, professional tone, max 300 words>",
   "closing": "Sincerely,\\n<candidate name>"
 }`,
-    context: "You are a professional career coach and cover letter writer.",
     untrustedData: [
       { label: "jobTitle", value: data.jobTitle, maxLength: 200 },
       { label: "companyName", value: data.companyName, maxLength: 200 },
+      { label: "jobDescription", value: data.jobDescription, maxLength: 8000 },
+      { label: "jobTitle", value: jobTitle, maxLength: 200 },
+      { label: "companyName", value: companyName, maxLength: 200 },
       { label: "candidateName", value: user.name || "Candidate", maxLength: 200 },
       { label: "industry", value: user.industry || "Technology", maxLength: 200 },
       { label: "experience", value: String(user.experience || "0") + " years", maxLength: 100 },
       { label: "skills", value: user.skills?.join(", ") || "Not specified", maxLength: 1000 },
       { label: "bio", value: user.bio || "Not specified", maxLength: 2000 },
-      { label: "jobDescription", value: data.jobDescription, maxLength: 8000 },
+      { label: "jobDescription", value: jobDescription, maxLength: 8000 },
     ],
   });
 
@@ -78,9 +88,9 @@ Respond ONLY with a valid JSON object in this exact format (no markdown, no code
     const coverLetter = await db.coverLetter.create({
       data: {
         content,
-        companyName: data.companyName,
-        jobTitle: data.jobTitle,
-        jobDescription: data.jobDescription,
+        companyName,
+        jobTitle,
+        jobDescription,
         status: "completed",
         userId: user.id,
       },
@@ -109,9 +119,9 @@ ${user.name || "Candidate"}
     const coverLetter = await db.coverLetter.create({
       data: {
         content: fallbackContent.trim(),
-        companyName: data.companyName,
-        jobTitle: data.jobTitle,
-        jobDescription: data.jobDescription,
+        companyName,
+        jobTitle,
+        jobDescription,
         status: "fallback",
         userId: user.id,
       },

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import { Users, Target, TrendingUp, Star } from "lucide-react";
 
@@ -48,10 +48,7 @@ export default function HeroStats() {
   const isInView = useInView(ref, { once: true, amount: 0.2 });
 
   return (
-    <div
-      ref={ref}
-      className="mx-auto grid max-w-5xl grid-cols-2 gap-6 md:grid-cols-4"
-    >
+    <div ref={ref} className="mx-auto grid max-w-5xl grid-cols-2 gap-6 md:grid-cols-4">
       {STATS_DATA.map((stat, index) => {
         const Icon = stat.icon;
         return (
@@ -60,26 +57,17 @@ export default function HeroStats() {
             initial={{ opacity: 0, y: 30 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.6, delay: index * 0.1 }}
-            whileHover={{ y: -5, scale: 1.05 }}
-            className="group flex flex-col items-center space-y-3 p-6 rounded-2xl bg-card border border-border hover:shadow-2xl hover:shadow-primary/10 transition-all duration-300"
+            whileHover={{ y: -5, scale: 1.02 }}
+            className="group flex flex-col items-center space-y-3 p-6 rounded-2xl glass border border-border/40 hover:border-primary/30 hover:shadow-xl transition-all duration-300"
           >
-            {/* Icon with colored background */}
-            <div
-              className={`p-3 rounded-xl ${stat.bgLight} ${stat.bgDark} transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6`}
-            >
+            <div className={`p-3 rounded-xl ${stat.bgLight} ${stat.bgDark} transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3`}>
               <Icon className={`w-6 h-6 ${stat.textColor}`} />
             </div>
-
-            {/* Number with gradient */}
             <h3 className="text-4xl md:text-5xl font-bold">
-              <span
-                className={`bg-gradient-to-br ${stat.gradient} bg-clip-text text-transparent`}
-              >
+              <span className={`bg-gradient-to-br ${stat.gradient} bg-clip-text text-transparent`}>
                 {stat.value}
               </span>
             </h3>
-
-            {/* Label */}
             <p className="text-sm md:text-base text-muted-foreground font-medium">
               {stat.label}
             </p>

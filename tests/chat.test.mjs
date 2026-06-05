@@ -62,6 +62,26 @@ describe("chatWithGemini", () => {
 
   it("requires a prompt", async () => {
     await expect(chatWithGemini("")).rejects.toThrow("Prompt is required");
+  it("returns validation errors for an empty prompt", async () => {
+    await expect(chatWithGemini("")).resolves.toEqual(
+      expect.objectContaining({
+        success: false,
+        errors: expect.objectContaining({
+          prompt: expect.any(Array),
+        }),
+      })
+    );
+  });
+
+  it("rejects whitespace-only prompts", async () => {
+  await expect(chatWithGemini("   ")).resolves.toEqual(
+    expect.objectContaining({
+      success: false,
+      errors: expect.objectContaining({
+        prompt: expect.any(Array),
+        }),
+      })
+    );
   });
 
   it("enforces rate limits", async () => {

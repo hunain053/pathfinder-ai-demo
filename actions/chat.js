@@ -7,9 +7,18 @@ import { generateGeminiContent } from "@/lib/gemini";
 import { buildSecurePrompt } from "@/lib/prompt-safety";
 import { buildUserProfileContext } from "@/lib/ai-context";
 import { enforceRateLimit, getRateLimitIdentifier } from "@/lib/rate-limit";
+import { validateInput } from "@/lib/validate";
+import { chatPromptSchema } from "@/lib/schemas/forms";
+import { checkRateLimit, formatResetTime } from "@/lib/rate-limit-actions";
 
 export async function chatWithGemini(prompt) {
-  if (!prompt) throw new Error("Prompt is required");
+  const validation = validateInput(chatPromptSchema, { prompt });
+  if (!validation.success) {
+    return { success: false, errors: validation.errors };
+  }
+
+  const authResult = await auth();
+  const userId = authResult?.userId;
 
   const { userId } = await auth();
   const headerList = await headers();
@@ -26,6 +35,17 @@ export async function chatWithGemini(prompt) {
     throw new Error(`Rate limit exceeded. Please try again in ${rateLimit.retryAfterSeconds} seconds.`);
   }
 
+  if (userId) {
+    const limit = await checkRateLimit(userId, "chat");
+    if (!limit.allowed) {
+      return {
+        success: false,
+        errors: {
+          _form: [`Chat limit reached. Resets in ${formatResetTime(limit.resetAt)}.`],
+        },
+      };
+    }
+  }
   const user = userId
     ? await db.user.findUnique({
         where: { clerkUserId: userId },
@@ -36,7 +56,7 @@ export async function chatWithGemini(prompt) {
     context: buildUserProfileContext(user),
     task: "You are Pathfinder AI, a career-focused assistant. Only answer career-related questions. Politely refuse unrelated questions.",
     untrustedData: [
-      { label: "userQuery", value: prompt, maxLength: 4000 },
+      { label: "userQuery", value: validation.data.prompt, maxLength: 4000 },
     ],
   });
 

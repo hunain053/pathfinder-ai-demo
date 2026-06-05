@@ -18,8 +18,14 @@ model User {
   updatedAt       DateTime         @updatedAt
 
   // Profile fields
+  currentRole     String?
+  targetRole      String?
+  careerGoals     String?
   bio             String?
   experience      Int?
+  currentRole     String?
+  targetRole      String?
+  careerGoals     String?
 
   // Settings
   saveChatHistory Boolean          @default(true)
@@ -202,4 +208,17 @@ model UserSettings {
   dashboardLayout String   @default("default")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+model AiRateLimit {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  windowStart DateTime
+  count     Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, action, windowStart])
+  @@index([userId, action])
 }

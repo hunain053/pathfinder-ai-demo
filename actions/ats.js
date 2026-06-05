@@ -9,6 +9,7 @@ import { buildUserProfileContext } from "@/lib/ai-context";
 import { validateInput, parseAIJson } from "@/lib/validate";
 import { atsAnalysisSchema } from "@/lib/schemas/forms";
 import { normalizeAtsSuggestions } from "@/lib/ats";
+import { checkRateLimit, formatResetTime } from "@/lib/rate-limit-actions";
 
 /**
  * Runs an ATS analysis using Gemini AI and persists the result safely.
@@ -16,8 +17,19 @@ import { normalizeAtsSuggestions } from "@/lib/ats";
 export async function analyzeATS(rawParams) {
   try {
     const { userId } = await auth();
+
     if (!userId) {
       return { success: false, errors: { _form: ["Sign-in required to scan applications."] } };
+    }
+
+    const limit = await checkRateLimit(userId, "ats");
+    if (!limit.allowed) {
+      return {
+        success: false,
+        errors: {
+          _form: [`ATS analysis limit reached. Resets in ${formatResetTime(limit.resetAt)}.`],
+        },
+      };
     }
 
     const validation = validateInput(atsAnalysisSchema, rawParams);
@@ -65,7 +77,22 @@ Be specific and actionable. Include at least 5 matched keywords (if present), at
 IMPORTANT: Return ONLY valid JSON. No markdown, no explanation outside the JSON.`,
     });
 
-    const result = await generateGeminiContent(prompt);
+    const cacheKey = generateCacheKey(
+      "ats",
+      resumeContent,
+      jobDescription,
+      jobTitle,
+      companyName
+    );
+
+    const result = await cachedGenerateGeminiContent(
+      prompt,
+      {},
+      {
+        key: cacheKey,
+        ttl: ATS_ANALYSIS_CACHE_TTL_MS,
+      }
+    );
     const parsedAnalysis = parseAIJson(result.response.text());
 
     const matchedKeywords = Array.isArray(parsedAnalysis.matchedKeywords) ? parsedAnalysis.matchedKeywords.map(String) : [];
