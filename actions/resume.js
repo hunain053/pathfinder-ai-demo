@@ -108,7 +108,6 @@ Respond ONLY with a valid JSON object in this exact format (no markdown, no code
     untrustedData: [
       { label: "resumeContent", value: current, maxLength: 8000 },
       { label: "type", value: type, maxLength: 200 },
-      { label: "industry", value: user.industry, maxLength: 200 },
     ],
   });
 
