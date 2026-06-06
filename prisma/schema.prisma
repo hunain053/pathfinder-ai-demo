@@ -23,10 +23,6 @@ model User {
   careerGoals     String?
   bio             String?
   experience      Int?
-  currentRole     String?
-  targetRole      String?
-  careerGoals     String?
-
   // Settings
   saveChatHistory Boolean          @default(true)
 
