@@ -176,7 +176,6 @@ export async function POST(request) {
     return respondError(ERROR_CODES.USER_NOT_FOUND);
   }
   const cacheUser = userId || request.headers.get("x-forwarded-for") || "anonymous";
-  const cacheKey = buildCacheKey(cacheUser, promptCheck.prompt);
 
   const existingCachedResponse = await getCachedResponse(
     cacheUser,
