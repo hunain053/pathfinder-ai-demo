@@ -249,3 +249,38 @@ export async function getAssessment(id) {
 
   return assessment;
 }
+
+/**
+ * Evaluates a transcribed voice answer.
+ */
+export async function evaluateVoiceAnswer(question, transcribedAnswer) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  const prompt = `You are an expert interview coach evaluating a spoken answer from a candidate.
+Evaluate the transcribed answer based on confidence, filler words, and content quality.
+
+Question: ${question}
+Candidate's spoken answer: ${transcribedAnswer}
+
+Provide feedback in JSON format ONLY:
+{
+  "score": 85,
+  "fillerWordsCount": 3,
+  "confidence": "High",
+  "feedback": "Your answer was very structured, but you used 'um' a few times."
+}`;
+
+  try {
+    const aiResult = await generateGeminiContent(prompt);
+    let rawText = aiResult.response.text();
+    if (rawText.startsWith("\`\`\`json")) {
+      rawText = rawText.replace(/\`\`\`json/g, "").replace(/\`\`\`/g, "").trim();
+    }
+    const parsed = JSON.parse(rawText);
+    return { success: true, data: parsed };
+  } catch (error) {
+    console.error("Voice evaluation error:", error);
+    return { success: false, error: "Failed to evaluate answer." };
+  }
+}

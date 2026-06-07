@@ -2,7 +2,7 @@ import { getAssessments } from "@/actions/interview";
 import StatsCards from "./_components/stats-cards";
 import PerformanceChart from "./_components/performace-chart";
 import QuizList from "./_components/quiz-list";
-import { Sparkles, Bot } from "lucide-react";
+import { Sparkles, Bot, Mic } from "lucide-react";
 
 export default async function InterviewPrepPage() {
   const assessments = await getAssessments();
@@ -21,9 +21,16 @@ export default async function InterviewPrepPage() {
               <Bot className="h-8 w-8 md:h-12 md:w-12 text-primary" />
               Interview <span className="text-gradient-primary">Intelligence</span>
             </h1>
-            <p className="text-muted-foreground text-sm md:text-base font-medium mt-2">
+            <p className="text-muted-foreground text-sm md:text-base font-medium mt-2 mb-6">
               Master your technique with AI-driven assessments and real-time performance tracking.
             </p>
+            <a 
+              href="/interview/voice-coach" 
+              className="inline-flex items-center justify-center rounded-xl font-bold h-12 px-6 bg-green-500 text-white hover:bg-green-600 transition-colors shadow-lg shadow-green-500/20"
+            >
+              <Mic className="h-5 w-5 mr-2" />
+              Try Voice Coach
+            </a>
           </div>
         </div>
 

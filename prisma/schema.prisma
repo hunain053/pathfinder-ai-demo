@@ -49,9 +49,13 @@ model User {
   conversations   Conversation[]
   resume          Resume?
   industryInsight IndustryInsight? @relation(fields: [industry], references: [industry])
-  atsAnalyses     ATSAnalysis[]
-  roadmaps        Roadmap[]
-  settings        UserSettings?
+  atsAnalyses          ATSAnalysis[]
+  roadmaps             Roadmap[]
+  jobApplications      JobApplication[]
+  linkedinOptimizations LinkedInOptimization[]
+  networkingEmails     NetworkingEmail[]
+  projectIdeas         ProjectIdea[]
+  settings             UserSettings?
 
   exportRecords ExportRecord[]
   auditLogs     AuditLog[]
@@ -122,6 +126,7 @@ model Conversation {
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
+  type      String    @default("chat")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   messages  Message[]
@@ -251,4 +256,57 @@ model Roadmap {
   content   Json     // The full roadmap milestones JSON
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model JobApplication {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName    String
+  jobTitle       String
+  status         String       @default("Wishlist")
+  url            String?
+  salary         String?
+  location       String?
+  notes          String?      @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([userId])
+}
+
+model LinkedInOptimization {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileContent String   @db.Text
+  analysis       Json
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
+model NetworkingEmail {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipientName  String?
+  company        String?
+  goal           String
+  content        String   @db.Text
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
+model ProjectIdea {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetRole     String
+  skillGap       String
+  ideas          Json
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
 }

@@ -43,9 +43,40 @@ export async function updateUser(data) {
       precomputedInsights = null;
     }
 
-    const result = await db.$transaction( 
-      async (tx) => { /* ----------------------------------------------------------- * 
-       --------------------------------------------------------- */ const industryInsight = precomputedInsights ? await tx.industryInsight.upsert({ where: { industry: data.industry }, update: {}, create: { industry: data.industry, ...precomputedInsights, nextUpdate: getIndustryInsightRefreshTime(), }, }) : await tx.industryInsight.findUnique({ where: { industry: data.industry }, }); if (!industryInsight) { throw new Error( "Industry insights are currently unavailable. Please try again." ); } /* ---------------------------------------------- * 2. Update the user with the new profile fields * -------------------------------------------- */ const updatedUser = await tx.user.update({ where: { id: user.id }, data: { industry: profileData.industry, currentRole: profileData.currentRole ?? null, targetRole: profileData.targetRole ?? null, careerGoals: profileData.careerGoals ?? null, experience: profileData.experience ?? null, bio: profileData.bio ?? null, skills: profileData.skills ?? [], }, }); return { updatedUser, industryInsight }; }, { timeout: 10_000 } );
+      const industryInsight = precomputedInsights
+        ? await tx.industryInsight.upsert({
+            where: { industry: data.industry },
+            update: {},
+            create: {
+              industry: data.industry,
+              ...precomputedInsights,
+              nextUpdate: getIndustryInsightRefreshTime(),
+            },
+          })
+        : await tx.industryInsight.findUnique({
+            where: { industry: data.industry },
+          });
+
+      /* ---------------------------------------------- *
+       * 2. Update the user with the new profile fields *
+       * -------------------------------------------- */
+      const updatedUser = await tx.user.update({
+        where: { id: user.id },
+        data: {
+          industry: profileData.industry,
+          currentRole: profileData.currentRole ?? null,
+          targetRole: profileData.targetRole ?? null,
+          careerGoals: profileData.careerGoals ?? null,
+          experience: profileData.experience ?? null,
+          bio: profileData.bio ?? null,
+          skills: profileData.skills ?? [],
+        },
+      });
+
+      return { updatedUser, industryInsight };
+    },
+    { timeout: 10_000 }
+  );
 
     revalidatePath("/");
     revalidatePath("/settings");
