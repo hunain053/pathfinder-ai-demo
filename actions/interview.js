@@ -18,12 +18,13 @@ export async function generateQuiz(category = "Technical") {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 
+  const categoryValidation = validateInput(quizCategorySchema, { category });
+  if (!categoryValidation.success) return { success: false, errors: categoryValidation.errors };
+
   const quizLimit = await checkRateLimit(userId, "quiz");
   if (!quizLimit.allowed) {
     throw new Error(`Quiz generation limit reached. Resets in ${formatResetTime(quizLimit.resetAt)}.`);
   }
-  const categoryValidation = validateInput(quizCategorySchema, { category });
-  if (!categoryValidation.success) return { success: false, errors: categoryValidation.errors };
 
   const user = await db.user.findUnique({
     where: { clerkUserId: userId },
@@ -113,22 +114,21 @@ Return ONLY a valid JSON object matching this schema. Do not output any markdown
 /**
  * Saves a quiz result and generates AI-powered feedback if mistakes were made.
  */
-export async function saveQuizResult(questions, answers, score, category = "Technical") {
+export async function saveQuizResult(questions, answers, category = "Technical") {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
-  
+
+  const validation = validateInput(quizResultSaveSchema, { questions, answers, category });
+  if (!validation.success) return { success: false, errors: validation.errors };
+
   const feedbackLimit = await checkRateLimit(userId, "quizFeedback");
   if (!feedbackLimit.allowed) {
     throw new Error(`Quiz feedback limit reached. Resets in ${formatResetTime(feedbackLimit.resetAt)}.`);
   }
 
-  const validation = validateInput(quizResultSaveSchema, { questions, answers, score, category });
-  if (!validation.success) return { success: false, errors: validation.errors };
-
   const {
     questions: validatedQuestions,
     answers: validatedAnswers,
-    score: validatedScore,
     category: validatedCategory,
   } = validation.data;
 
@@ -137,9 +137,10 @@ export async function saveQuizResult(questions, answers, score, category = "Tech
   });
   if (!user) throw new Error("User not found");
 
-  // Map user answers to question outcomes
+  // Map user answers to question outcomes and compute score server-side
   const questionResults = [];
   const wrongAnswers = [];
+  let correctCount = 0;
 
   validatedQuestions.forEach((q, index) => {
     if (!q?.question) return;
@@ -158,10 +159,16 @@ export async function saveQuizResult(questions, answers, score, category = "Tech
 
     questionResults.push(mappedQuestion);
 
-    if (!isCorrect) {
+    if (isCorrect) {
+      correctCount++;
+    } else {
       wrongAnswers.push(mappedQuestion);
     }
   });
+
+  const computedScore = validatedQuestions.length > 0
+    ? Math.round((correctCount / validatedQuestions.length) * 100)
+    : 0;
 
   let improvementTip = null;
 
@@ -178,7 +185,7 @@ export async function saveQuizResult(questions, answers, score, category = "Tech
       untrustedData: [
         { label: "industry", value: user.industry || "software", maxLength: 200 },
         { label: "category", value: validatedCategory, maxLength: 200 },
-        { label: "score", value: String(validatedScore), maxLength: 50 },
+        { label: "score", value: String(computedScore), maxLength: 50 },
         { label: "wrongAnswers", value: wrongText, maxLength: 4000 },
       ],
     });
@@ -196,7 +203,7 @@ export async function saveQuizResult(questions, answers, score, category = "Tech
     const assessment = await db.assessment.create({
       data: {
         userId: user.id,
-        quizScore: validatedScore,
+        quizScore: computedScore,
         questions: questionResults,
         category: validatedCategory,
         improvementTip,

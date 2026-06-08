@@ -145,20 +145,33 @@ export async function getCoverLetter(id) {
  *Deletes a specific cover letter record with strict ownership validation.
  */
 export async function deleteCoverLetter(id) {
-  const { userId } = await auth();
-  if (!userId) return { success: false, errors: { _form: ["Unauthorized"] } };
+  try {
+    if (!id || typeof id !== "string" || id.trim().length === 0) {
+      return { success: false, errors: { _form: ["Invalid cover letter identifier."] } };
+    }
 
-  const user = await db.user.findUnique({
-    where: { clerkUserId: userId },
-  });
-  if (!user) return { success: false, errors: { _form: ["User not found"] } };
+    const { userId } = await auth();
+    if (!userId) return { success: false, errors: { _form: ["Unauthorized"] } };
 
-  await db.coverLetter.deleteMany({
-    where: {
-      id,
-      userId: user.id,
-    },
-  });
+    const user = await db.user.findUnique({
+      where: { clerkUserId: userId },
+    });
+    if (!user) return { success: false, errors: { _form: ["User not found"] } };
 
-  return { success: true };
+    const { count } = await db.coverLetter.deleteMany({
+      where: {
+        id: id.trim(),
+        userId: user.id,
+      },
+    });
+
+    if (count === 0) {
+      return { success: false, errors: { _form: ["Cover letter not found or already deleted."] } };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to delete cover letter:", error);
+    return { success: false, errors: { _form: [error.message || String(error)] } };
+  }
 }

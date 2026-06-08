@@ -29,37 +29,32 @@ export async function updateUser(data) {
   });
   if (!user) throw new Error("User not found");
 
+  // Generate industry insights outside the DB transaction to avoid
+  // long-running external calls inside a DB tx (which can cause timeouts).
+  let precomputedInsights = null;
   try {
-    // Generate industry insights outside the DB transaction to avoid
-    // long-running external calls inside a DB tx (which can cause timeouts).
-    let precomputedInsights = null;
-    try {
-      precomputedInsights = await generateAIInsights(
-        profileData.industry,
-        profileData
-      );
-    } catch (e) {
-      console.error("Failed to generate insights pre-transaction:", e);
-      precomputedInsights = null;
-    }
+    precomputedInsights = await generateAIInsights(profileData.industry, profileData);
+  } catch (e) {
+    console.error("Failed to generate insights pre-transaction:", e);
+    precomputedInsights = null;
+  }
 
+  try {
+    const result = await db.$transaction(async (tx) => {
       const industryInsight = precomputedInsights
         ? await tx.industryInsight.upsert({
-            where: { industry: data.industry },
+            where: { industry: profileData.industry },
             update: {},
             create: {
-              industry: data.industry,
+              industry: profileData.industry,
               ...precomputedInsights,
               nextUpdate: getIndustryInsightRefreshTime(),
             },
           })
         : await tx.industryInsight.findUnique({
-            where: { industry: data.industry },
+            where: { industry: profileData.industry },
           });
 
-      /* ---------------------------------------------- *
-       * 2. Update the user with the new profile fields *
-       * -------------------------------------------- */
       const updatedUser = await tx.user.update({
         where: { id: user.id },
         data: {
@@ -72,15 +67,13 @@ export async function updateUser(data) {
           skills: profileData.skills ?? [],
         },
       });
-
       return { updatedUser, industryInsight };
-    },
-    { timeout: 10_000 }
-  );
+    });
 
     revalidatePath("/");
     revalidatePath("/settings");
-    return result.updatedUser;
+
+    return result;
   } catch (err) {
     console.error("Error updating user and industry:", err);
     throw new Error("Failed to update profile");
@@ -106,7 +99,7 @@ export async function getUserOnboardingStatus() {
 
   if (!user) {
     /* 2 ▸ pull data from Clerk */
-    const backend   = await clerkClient();
+    const backend = await clerkClient();
     const clerkUser = await backend.users.getUser(userId);
 
     const email = clerkUser.emailAddresses?.[0]?.emailAddress;
