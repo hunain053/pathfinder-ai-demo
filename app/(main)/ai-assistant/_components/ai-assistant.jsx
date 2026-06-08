@@ -171,6 +171,22 @@ export default function AIAssistant() {
     }
   };
 
+  const updateSaveChatHistory = async (newValue) => {
+    const previousValue = saveChatHistory;
+    setSaveChatHistory(newValue);
+    try {
+      const res = await fetch("/api/user/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ saveChatHistory: newValue }),
+      });
+      if (!res.ok) throw new Error("Failed to save preference");
+    } catch (err) {
+      setSaveChatHistory(previousValue);
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchConversations();
     fetchPreferences();
@@ -344,7 +360,7 @@ export default function AIAssistant() {
                   <span className="text-xs font-bold text-foreground">Save History</span>
                 </div>
                 <div 
-                  onClick={() => setSaveChatHistory(!saveChatHistory)}
+                  onClick={() => updateSaveChatHistory(!saveChatHistory)}
                   className={cn(
                     "w-10 h-5 rounded-full transition-colors cursor-pointer relative p-0.5",
                     saveChatHistory ? "bg-primary" : "bg-border"
@@ -358,7 +374,7 @@ export default function AIAssistant() {
               </div>
             ) : (
               <div 
-                onClick={() => setSaveChatHistory(!saveChatHistory)}
+                onClick={() => updateSaveChatHistory(!saveChatHistory)}
                 className={cn(
                   "w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-colors hover:bg-muted",
                   saveChatHistory ? "text-primary" : "text-muted-foreground"
