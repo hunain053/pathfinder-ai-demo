@@ -58,6 +58,9 @@ model User {
   resumeGenerations    ResumeGeneration[]
   starStories          StarStory[]
   recruiterEmails      RecruiterEmail[]
+  interviewCheatSheets InterviewCheatSheet[]
+  linkedinPosts        LinkedInPost[]
+  offerComparisons     OfferComparison[]
   settings             UserSettings?
 
   exportRecords ExportRecord[]
@@ -351,6 +354,40 @@ model RecruiterEmail {
   originalEmail  String   @db.Text
   goal           String
   replyContent   String   @db.Text
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
+model InterviewCheatSheet {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company        String
+  role           String
+  content        Json
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
+model LinkedInPost {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic          String   @db.Text
+  content        Json
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
+model OfferComparison {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  offers         Json
+  analysis       Json
   createdAt      DateTime @default(now())
 
   @@index([userId])

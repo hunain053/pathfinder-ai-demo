@@ -27,7 +27,10 @@ import {
   Video,
   Flame,
   Star,
-  Send
+  Send,
+  Linkedin,
+  FileSearch,
+  Calculator
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -49,11 +52,14 @@ const MENU_GROUPS = [
       { href: "/resume-roast", label: "Resume Roast", icon: <Flame className="h-4 w-4 text-red-500" /> },
       { href: "/ai-cover-letter", label: "Cover Letters", icon: <Mail className="h-4 w-4" /> },
       { href: "/linkedin-optimizer", label: "LinkedIn Optimizer", icon: <ScanSearch className="h-4 w-4" /> },
+      { href: "/linkedin-post", label: "LinkedIn Posts", icon: <Linkedin className="h-4 w-4 text-[#0A66C2]" /> },
       { href: "/networking", label: "Networking", icon: <Mail className="h-4 w-4" /> },
       { href: "/email-assistant", label: "Email Assistant", icon: <Send className="h-4 w-4 text-blue-500" /> },
       { href: "/project-ideas", label: "Portfolio Ideas", icon: <Lightbulb className="h-4 w-4" /> },
       { href: "/salary-negotiation", label: "Salary Coach", icon: <DollarSign className="h-4 w-4" /> },
+      { href: "/offer-comparer", label: "Offer Comparer", icon: <Calculator className="h-4 w-4 text-emerald-500" /> },
       { href: "/interview", label: "Mock Interviews", icon: <Mic className="h-4 w-4" /> },
+      { href: "/interview/cheat-sheet", label: "Cheat Sheet", icon: <FileSearch className="h-4 w-4" /> },
       { href: "/interview/star-builder", label: "STAR Builder", icon: <Star className="h-4 w-4 text-yellow-500" /> },
       { href: "/interview/voice-coach", label: "Voice Coach", icon: <Mic className="h-4 w-4 text-green-500" /> },
       { href: "/interview/video-coach", label: "Video Coach", icon: <Video className="h-4 w-4 text-blue-500" /> },
